@@ -145,6 +145,10 @@ select.mode-sel-4 { color: var(--deposit); }
 .sorting-good.dragover { border-color: var(--accent); border-style: dashed; }
 .pricing-grid { width: 100%; border-collapse: collapse; }
 .pricing-grid th, .pricing-grid td { padding: 4px 8px; border-bottom: 1px solid var(--row-alt); text-align: left; }
+/* Hardcoded default prices, always shown for reference (read-only) */
+.pricing-grid td.default-price { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.pricing-grid th.default-price { color: var(--muted); text-align: right; font-weight: normal; }
+.pricing-grid td.default-price.diff { color: var(--accent); font-weight: 600; }
 
 /* Modal */
 #modal-root .backdrop {

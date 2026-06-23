@@ -697,20 +697,29 @@ function renderPricingsTab() {
 
   let editor;
   if (preset) {
+    const def = META.defaultPricing;
     const rows = [];
     for (let g = 0; g < META.goods.count; g++) {
       const b = h("input", { type: "number", min: 0, max: 9999, value: preset.buying[g],
         onchange: (e) => { preset.buying[g] = parseInt(e.target.value || "0", 10); } });
       const s = h("input", { type: "number", min: 0, max: 9999, value: preset.selling[g],
         onchange: (e) => { preset.selling[g] = parseInt(e.target.value || "0", 10); } });
-      rows.push(h("tr", null, h("td", null, META.goods.names[g]), h("td", null, b), h("td", null, s)));
+      const defBuy = def.buying[g], defSell = def.selling[g];
+      const cBuy = h("td", { class: "default-price" + (preset.buying[g] !== defBuy ? " diff" : ""),
+        title: "Default buy price" }, defBuy);
+      const cSell = h("td", { class: "default-price" + (preset.selling[g] !== defSell ? " diff" : ""),
+        title: "Default sell price" }, defSell);
+      rows.push(h("tr", null, h("td", null, META.goods.names[g]),
+        h("td", null, b), h("td", null, s), cBuy, cSell));
     }
     editor = h("div", { class: "preset-editor" },
       h("div", { class: "editor-head" }, h("strong", null, "Edit: " + preset.id),
         h("div", { class: "spacer" }),
         h("button", { class: "primary", onclick: () => savePricing(preset) }, "Save")),
       h("table", { class: "pricing-grid" },
-        h("thead", null, h("tr", null, h("th", null, "Good"), h("th", null, "Buy"), h("th", null, "Sell"))),
+        h("thead", null, h("tr", null, h("th", null, "Good"), h("th", null, "Buy"), h("th", null, "Sell"),
+          h("th", { class: "default-price" }, "Def. Buy"),
+          h("th", { class: "default-price" }, "Def. Sell"))),
         h("tbody", null, rows)));
   } else {
     editor = h("div", { class: "preset-editor" }, h("p", { class: "hint" }, "Select or create a pricing preset."));

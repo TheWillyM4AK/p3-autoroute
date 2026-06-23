@@ -13,6 +13,7 @@ import os
 from . import generators, goods, settings, towns
 from .models import Route, RuleMode, StopMode, TradeStop, default_rules
 from .presets import (
+    DEFAULT_BUYING, DEFAULT_SELLING,
     Pricing, PricingStore, Sorting, SortingStore, apply_pricing, apply_sorting,
 )
 from .rou import RouteRepository
@@ -29,6 +30,8 @@ class Api:
         return {
             "goods": {"names": goods.NAMES, "visibility": goods.VISIBILITY,
                       "sizes": goods.SIZES, "count": goods.COUNT},
+            "defaultPricing": {"buying": list(DEFAULT_BUYING),
+                               "selling": list(DEFAULT_SELLING)},
             "towns": {"names": towns.NAMES, "count": towns.COUNT},
             "ruleModes": [m.name for m in RuleMode],
             "stopModes": [m.name for m in StopMode],
