@@ -89,11 +89,11 @@ main { padding: 16px; }
 .folder-bar { display: flex; gap: 8px; margin-bottom: 14px; }
 #folder-path { flex: 1; }
 
-.routes-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+.routes-layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
 #route-list-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
 .panel-head { display: flex; gap: 6px; margin-bottom: 8px; }
 .panel-head input { flex: 1; }
-#route-list { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow: auto; }
+#route-list { list-style: none; margin: 0; padding: 0; max-height: 34vh; overflow: auto; }
 #route-list li {
   display: flex; align-items: center; gap: 4px; padding: 6px 4px;
   border-radius: 6px; border: 1px solid transparent;
@@ -104,14 +104,18 @@ main { padding: 16px; }
 #route-list .icon { padding: 2px 6px; font-size: 12px; }
 #routes-count { color: var(--muted); font-size: 12px; margin-top: 6px; text-align: right; }
 
+/* Stops manager — lives under the route list in the left column. */
+#stops-manager { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.stops-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.stops-hint { display: block; color: var(--muted); margin-bottom: 8px; }
+
 #route-editor { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .editor-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .editor-head .spacer { flex: 1; }
-.stops-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 
 #stops-strip {
   display: flex; flex-direction: column; gap: 8px;
-  overflow-y: auto; max-height: 420px; padding-right: 8px; min-height: 96px;
+  overflow-y: auto; max-height: 46vh; padding-right: 8px; min-height: 96px;
 }
 .stop-card {
   flex: 0 0 auto; border: 1px solid var(--line); border-radius: 8px;
@@ -128,7 +132,7 @@ main { padding: 16px; }
 .mode-REPAIR { color: var(--withdraw); }
 .mode-SKIP { color: var(--muted); }
 
-#stop-editor { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+#stop-editor { margin-top: 0; }
 .stop-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
 .stop-toolbar .group { display: flex; gap: 4px; align-items: center; }
 .stop-toolbar label { color: var(--muted); font-size: 12px; }
@@ -145,19 +149,14 @@ table.rules tr.dragover td { box-shadow: inset 0 2px 0 var(--accent); }
 .good-icon { width: 20px; height: 20px; vertical-align: middle; margin-right: 8px;
   border-radius: 3px; image-rendering: -webkit-optimize-contrast; }
 .sorting-good .good-icon { margin-right: 0; } /* flex gap handles the spacing */
-/* Cycling per-rule mode button, styled as the game's pill: a white trade glyph
-   on a coloured background. Game palette is two-tone — blue = goods INTO the
-   ship (Buy/Withdraw), amber = OUT of it (Sell/Deposit); None is an empty pill.
-   The inline SVG inherits `currentColor`, so the pill's text colour is the
-   glyph colour. */
-.mode-btn { display: inline-flex; align-items: center; justify-content: center;
-  padding: 2px 12px; min-height: 24px; cursor: pointer; border-radius: 999px;
-  border: 1px solid var(--line); background: var(--row-alt); color: var(--muted); }
-.mode-btn .mode-icon { display: inline-flex; }
-.mode-btn .mode-icon svg { display: block; }
-.mode-btn:hover { filter: brightness(1.08); }
-.mode-btn-1, .mode-btn-3 { color: #fff; background: var(--withdraw); border-color: transparent; } /* into ship */
-.mode-btn-2, .mode-btn-4 { color: #fff; background: var(--sell); border-color: transparent; }     /* out of ship */
+/* Per-rule trade mode <select>, coloured by its mode. The closed select takes
+   the colour of the picked mode (mode-sel-N), and each open option is tinted
+   the same so the dropdown previews the colour each choice will apply. */
+option.mode-opt-0 { color: var(--ink); } /* None: neutral, never inherits the select's current mode colour */
+select.mode-sel-1, option.mode-opt-1 { color: var(--buy); }
+select.mode-sel-2, option.mode-opt-2 { color: var(--sell); }
+select.mode-sel-3, option.mode-opt-3 { color: var(--withdraw); }
+select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 
 /* Presets tabs */
 .preset-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }

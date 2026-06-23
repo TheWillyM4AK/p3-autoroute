@@ -39,6 +39,14 @@
           </div>
           <ul id="route-list"></ul>
           <div id="routes-count"></div>
+          <div id="stops-manager" class="hidden">
+            <div class="stops-head">
+              <span>Stops <small id="stops-count"></small></span>
+              <button id="add-stop">+ Stop</button>
+            </div>
+            <small class="hint stops-hint">Drag to reorder</small>
+            <div id="stops-strip"></div>
+          </div>
         </aside>
         <div id="route-editor" class="hidden">
           <div class="editor-head">
@@ -47,12 +55,6 @@
             <button id="templates-btn">Templates…</button>
             <button id="save-route" class="primary">Save</button>
           </div>
-          <div class="stops-head">
-            <span>Stops <small id="stops-count"></small></span>
-            <button id="add-stop">+ Stop</button>
-            <small class="hint">Drag to reorder</small>
-          </div>
-          <div id="stops-strip"></div>
           <div id="stop-editor" class="hidden"></div>
         </div>
       </div>
