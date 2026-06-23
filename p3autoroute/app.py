@@ -27,5 +27,5 @@ def run(width: int = 1240, height: int = 820) -> None:
         height=height,
         min_size=(900, 600),
     )
-    api.window = window  # enables the native folder picker
+    api._window = window  # enables the native folder picker (private: see Api.__init__)
     webview.start()
