@@ -1,39 +1,47 @@
-/* LIGHT theme (default) */
+/* ─────────────────────────────────────────────────────────────
+   Paleta Flexoki (de Steph Ango / kepano) mapeada a una estética
+   Patrician III / Liga Hanseática: pergamino y papel, madera de
+   roble y latón, mar Báltico azul y sellos de cera rojos.
+   ───────────────────────────────────────────────────────────── */
+
+/* LIGHT theme (default) — libro mayor de pergamino a la luz del día */
 :root, :root[data-theme="light"] {
-  --bg: #f5f6f8;
-  --panel: #ffffff;
-  --field: #ffffff;
-  --ink: #232830;
-  --muted: #6b7280;
-  --line: #dfe3e8;
-  --accent: #7a5230;
-  --accent-ink: #ffffff;
-  --buy: #1f7a4d;
-  --sell: #b0481f;
-  --withdraw: #2f5fa0;
-  --deposit: #8a5a2b;
-  --danger: #c0392b;
-  --row-alt: #f3f4f6;
-  --shadow: 0 1px 3px rgba(0,0,0,.08);
+  --bg:         #F2F0E5; /* base-50    — página de pergamino   */
+  --panel:      #FFFCF0; /* paper      — hoja del libro mayor  */
+  --field:      #FFFCF0; /* paper                              */
+  --ink:        #100F0F; /* black      — tinta ferrogálica     */
+  --muted:      #6F6E69; /* base-600                           */
+  --line:       #DAD8CE; /* base-150   — filete fino           */
+  --accent:     #71320D; /* orange-800 — madera de roble       */
+  --accent-ink: #FFFCF0; /* paper                              */
+  --buy:        #66800B; /* green-600  — grano / cosecha       */
+  --sell:       #BC5215; /* orange-600 — terracota / herrumbre */
+  --withdraw:   #205EA6; /* blue-600   — mar Báltico           */
+  --deposit:    #8E6B01; /* yellow-700 — latón / moneda        */
+  --danger:     #AF3029; /* red-600    — sello de cera         */
+  --row-alt:    #E6E4D9; /* base-100   — fila alterna / hover  */
+  --glow:       #F9AE77; /* orange-200 — halo de selección     */
+  --shadow: 0 1px 3px rgba(16,15,15,.10);
 }
 
-/* DARK theme (toggle) */
+/* DARK theme (toggle) — casa de contabilidad a la luz del candil */
 :root[data-theme="dark"] {
-  --bg: #181a1f;
-  --panel: #21252b;
-  --field: #2a2f37;
-  --ink: #e6e8ec;
-  --muted: #9aa3af;
-  --line: #353b44;
-  --accent: #c8915c;
-  --accent-ink: #1a1208;
-  --buy: #4cc38a;
-  --sell: #e08a5b;
-  --withdraw: #6aa0e0;
-  --deposit: #c8915c;
-  --danger: #e06b5e;
-  --row-alt: #262b32;
-  --shadow: 0 1px 3px rgba(0,0,0,.4);
+  --bg:         #100F0F; /* black                              */
+  --panel:      #1C1B1A; /* base-950                           */
+  --field:      #282726; /* base-900                           */
+  --ink:        #CECDC3; /* base-200                           */
+  --muted:      #878580; /* base-500                           */
+  --line:       #403E3C; /* base-800                           */
+  --accent:     #DA702C; /* orange-400 — ámbar de candil       */
+  --accent-ink: #100F0F; /* black                              */
+  --buy:        #879A39; /* green-400                          */
+  --sell:       #EC8B49; /* orange-300                         */
+  --withdraw:   #4385BE; /* blue-400                           */
+  --deposit:    #D0A215; /* yellow-400                         */
+  --danger:     #D14D41; /* red-400                            */
+  --row-alt:    #282726; /* base-900                           */
+  --glow:       #9D4310; /* orange-700 — halo de selección     */
+  --shadow: 0 1px 3px rgba(16,15,15,.5);
 }
 
 * { box-sizing: border-box; }
@@ -103,7 +111,7 @@ main { padding: 16px; }
   flex: 0 0 150px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--field); padding: 8px; display: flex; flex-direction: column; gap: 6px;
 }
-.stop-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px #d8b48c inset; }
+.stop-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--glow) inset; }
 .stop-card.dragover { border-style: dashed; border-color: var(--accent); }
 .stop-card .num { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
 .stop-card .grip { cursor: grab; color: var(--muted); }
@@ -138,7 +146,7 @@ select.mode-sel-4 { color: var(--deposit); }
 .preset-list li { display: flex; align-items: center; gap: 4px; padding: 6px 4px; border-radius: 6px; }
 .preset-list li.selected { background: var(--row-alt); }
 .preset-list li .pname { flex: 1; cursor: pointer; }
-.badge { font-size: 10px; background: var(--accent); color: #fff; padding: 1px 5px; border-radius: 8px; }
+.badge { font-size: 10px; background: var(--accent); color: var(--accent-ink); padding: 1px 5px; border-radius: 8px; }
 .preset-editor { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .sorting-good { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--line);
   border-radius: 6px; background: var(--field); margin-bottom: 4px; cursor: grab; }
@@ -148,7 +156,7 @@ select.mode-sel-4 { color: var(--deposit); }
 
 /* Modal */
 #modal-root .backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,.4);
+  position: fixed; inset: 0; background: rgba(16,15,15,.45);
   display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; z-index: 20; overflow: auto;
 }
 .modal { background: var(--panel); border-radius: 10px; padding: 16px; width: min(760px, 96vw); }
