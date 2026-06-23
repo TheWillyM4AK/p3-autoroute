@@ -51,12 +51,6 @@ class Api:
         """Persisted app settings (e.g. last opened folder)."""
         return settings.load()
 
-    # --------------------------------------------------------------- captains
-    def captains_locate(self, params=None) -> dict:
-        """Which towns currently have a hireable captain (reads live game RAM)."""
-        from . import captains
-        return captains.locate()
-
     # --------------------------------------------------------------- folder
     def pick_folder(self, params=None) -> dict:
         """Open the native folder picker (desktop mode only)."""
@@ -186,7 +180,7 @@ class Api:
 
 # Methods exposed by name (for the web server dispatch).
 PUBLIC_METHODS = [
-    "meta", "settings", "captains_locate", "pick_folder", "folder_open",
+    "meta", "settings", "pick_folder", "folder_open",
     "route_load", "route_save", "route_create", "route_delete",
     "route_rename", "route_duplicate",
     "stop_new", "stop_apply_pricing", "stop_apply_sorting", "generate",
