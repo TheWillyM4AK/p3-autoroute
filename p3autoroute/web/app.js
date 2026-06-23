@@ -537,6 +537,82 @@ const GENERATORS = [
   { id: "sucker_to_warehouse", name: "Sucker → Warehouse", towns: 2, fields: ["quantity"], help: "Moves goods between two towns via a warehouse." },
 ];
 
+// --------------------------------------------------------------------------
+// Captains — where can I hire a captain right now? (reads the live game)
+// --------------------------------------------------------------------------
+const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function skillCell(level) {
+  // Skills are shown on the game's own 0–5 scale, with a little bar to compare.
+  return h("td", { class: "skill" },
+    h("span", { class: "skill-bar" },
+      h("span", { class: "skill-fill", style: `width:${level / 5 * 100}%` })),
+    h("span", { class: "skill-num" }, String(level)));
+}
+
+function renderCaptains(data) {
+  if (!data || !data.ok) {
+    const msg = (data && data.error) || "Couldn't read the game.";
+    return h("div", { class: "captains-msg" },
+      h("p", { class: "error" }, msg),
+      h("p", { class: "hint" },
+        "This feature reads the running Patrician III to see which taverns "
+        + "have a captain waiting. Make sure the game is open with a savegame loaded."));
+  }
+  const d = data.date;
+  const wrap = h("div", { class: "captains-result" });
+  wrap.append(h("p", { class: "captains-summary" },
+    `${data.totalCaptains} captain${data.totalCaptains === 1 ? "" : "s"} for hire across `
+    + `${data.townsWithCaptains} town${data.townsWithCaptains === 1 ? "" : "s"} `
+    + `— game date ${d.day} ${MONTHS[d.month]} ${d.year}.`));
+
+  const rows = [];
+  for (const e of data.towns) {
+    e.captains.forEach((c, i) => {
+      rows.push(h("tr", null,
+        h("td", { class: "cap-town" }, i === 0 ? e.town : ""),
+        skillCell(c.trade),
+        skillCell(c.sailing),
+        skillCell(c.fighting),
+        h("td", { class: "cap-wage" }, String(c.wage))));
+    });
+  }
+  wrap.append(h("table", { class: "captains-table" },
+    h("thead", null, h("tr", null,
+      h("th", null, "Town"),
+      h("th", { title: "Trade skill (0–5)" }, "Trade"),
+      h("th", { title: "Sailing skill (0–5)" }, "Sailing"),
+      h("th", { title: "Fighting skill (0–5)" }, "Fighting"),
+      h("th", { title: "Daily wage" }, "Wage"))),
+    h("tbody", null, rows)));
+
+  if (data.emptyTowns && data.emptyTowns.length) {
+    wrap.append(h("p", { class: "hint captains-empty" },
+      "No captain in: " + data.emptyTowns.join(", ") + "."));
+  }
+  return wrap;
+}
+
+function openCaptains() {
+  const body = h("div", { class: "captains-body" }, h("p", { class: "hint" }, "Reading the game…"));
+  const refreshBtn = h("button", null, "↻ Refresh");
+  const node = h("div", { class: "modal captains-modal" },
+    h("h2", null, "⚓ Hireable captains"),
+    body, h("div", { class: "modal-actions" }, refreshBtn));
+  modal(node);
+
+  async function load() {
+    body.replaceChildren(h("p", { class: "hint" }, "Reading the game…"));
+    let data;
+    try { data = await api("/api/captains/locate", {}); }
+    catch (e) { data = { ok: false, error: "Unexpected error: " + e }; }
+    body.replaceChildren(renderCaptains(data));
+  }
+  refreshBtn.addEventListener("click", load);
+  load();
+}
+
 function openTemplates() {
   let current = GENERATORS[0];
   const body = h("div");
@@ -841,6 +917,7 @@ async function init() {
   $("#add-stop").addEventListener("click", addStop);
   $("#save-route").addEventListener("click", saveRoute);
   $("#templates-btn").addEventListener("click", openTemplates);
+  $("#captains-btn").addEventListener("click", openCaptains);
   setStatus("Ready. Open your game's Save\\AutoRoute folder.");
 
   // Remember the last opened folder and reopen it automatically.
