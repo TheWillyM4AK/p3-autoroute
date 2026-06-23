@@ -182,3 +182,70 @@ select.mode-sel-4 { color: var(--deposit); }
 .gen-goods table { width: 100%; border-collapse: collapse; }
 .gen-goods td, .gen-goods th { padding: 3px 8px; border-bottom: 1px solid var(--row-alt); font-size: 13px; }
 .dialog-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+
+/* ─────────────────────────────────────────────────────────────
+   Save button feedback — un "sello de cera" hanseático: gira
+   mientras escribe, estampa un visto en verde grano al guardar,
+   y se sacude en rojo sello si falla. min-width fija el ancho
+   para que no salte al cambiar de etiqueta.
+   ───────────────────────────────────────────────────────────── */
+#save-route {
+  min-width: 96px; position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+  transition: background .25s ease, border-color .25s ease, color .25s ease;
+}
+#save-route.is-saving { pointer-events: none; cursor: progress; }
+
+/* Spinner mientras guarda */
+#save-route .spinner {
+  width: 12px; height: 12px; margin-right: 6px; border-radius: 50%;
+  border: 2px solid rgba(255, 252, 240, .35);
+  border-top-color: var(--accent-ink);
+  animation: p3-spin .6s linear infinite;
+}
+@keyframes p3-spin { to { transform: rotate(360deg); } }
+
+/* Éxito: estampa de sello verde con anillo que se expande */
+#save-route.is-saved {
+  background: var(--buy); border-color: var(--buy); color: #fff;
+  animation: p3-stamp .42s cubic-bezier(.2, .8, .3, 1.25);
+}
+@keyframes p3-stamp {
+  0%   { transform: scale(.82); }
+  55%  { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+#save-route.is-saved::after {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit;
+  border: 2px solid var(--buy); pointer-events: none;
+  animation: p3-seal-ring .65s ease-out forwards;
+}
+@keyframes p3-seal-ring {
+  0%   { transform: scale(1);   opacity: .55; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+/* El visto se dibuja solo */
+#save-route .check { margin-right: 5px; }
+#save-route .check path {
+  fill: none; stroke: currentColor; stroke-width: 3;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 24; stroke-dashoffset: 24;
+  animation: p3-draw-check .35s .1s ease-out forwards;
+}
+@keyframes p3-draw-check { to { stroke-dashoffset: 0; } }
+
+/* Error: sacudón rojo sello */
+#save-route.is-error {
+  background: var(--danger); border-color: var(--danger); color: #fff;
+  animation: p3-shake .42s ease;
+}
+@keyframes p3-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-3px); }
+  40%, 60% { transform: translateX(3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #save-route, #save-route * { animation: none !important; }
+}

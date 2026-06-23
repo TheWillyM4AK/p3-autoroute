@@ -381,10 +381,51 @@ function addStop() {
   renderEditor();
 }
 
+// Visual feedback for the Save button: a spinner while writing, then a green
+// "wax seal" stamp with a self-drawing checkmark on success, or a red shake on
+// error. The button reverts to its idle "Save" label after a short beat.
+let _saveResetTimer = null;
+function resetSaveButton() {
+  const btn = $("#save-route");
+  if (!btn) return;
+  btn.classList.remove("is-saving", "is-saved", "is-error");
+  btn.textContent = "Save";
+  _saveResetTimer = null;
+}
+
 async function saveRoute() {
-  const res = await api("/api/route/save", { path: state.folder, route: state.route });
-  if (!res.ok) { setStatus("Save error: " + res.error); return; }
+  const btn = $("#save-route");
+  if (btn.dataset.busy === "1") return; // ignore re-entrant clicks while saving
+  btn.dataset.busy = "1";
+  if (_saveResetTimer) { clearTimeout(_saveResetTimer); _saveResetTimer = null; }
+
+  btn.classList.remove("is-saved", "is-error");
+  btn.classList.add("is-saving");
+  btn.innerHTML = '<span class="spinner" aria-hidden="true"></span>Saving…';
+
+  let res;
+  try {
+    res = await api("/api/route/save", { path: state.folder, route: state.route });
+  } catch (e) {
+    res = { ok: false, error: String(e) };
+  }
+
+  btn.classList.remove("is-saving");
+  btn.dataset.busy = "0";
+
+  if (!res || !res.ok) {
+    setStatus("Save error: " + (res ? res.error : "unknown"));
+    btn.classList.add("is-error");
+    btn.textContent = "✗ Error";
+    _saveResetTimer = setTimeout(resetSaveButton, 2200);
+    return;
+  }
+
   setStatus(`Route "${state.route.name}" saved`);
+  btn.classList.add("is-saved");
+  btn.innerHTML = '<svg class="check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">' +
+    '<path d="M4 12.5l5 5L20 6"/></svg>Saved';
+  _saveResetTimer = setTimeout(resetSaveButton, 1800);
   refreshFolder();
 }
 
