@@ -283,26 +283,3 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 .trade-table tr.tp-buy .tp-act { color: var(--buy); font-weight: 600; }
 .trade-table tr.tp-sell .tp-act { color: var(--sell); font-weight: 600; }
 .trade-table tr.tp-none { color: var(--muted); }
-
-/* Captains modal -------------------------------------------------------- */
-#captains-btn { margin-left: 4px; }
-.captains-body { min-height: 60px; }
-.captains-msg .error,
-.captains-result .error { color: var(--danger); font-weight: 600; }
-.captains-msg .hint, .captains-empty { color: var(--muted); font-size: 13px; }
-.captains-summary { margin: 0 0 10px; font-size: 14px; }
-.captains-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.captains-table th, .captains-table td {
-  padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: left;
-}
-.captains-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
-.captains-table .cap-town { font-weight: 600; }
-.captains-table .cap-wage { text-align: right; font-variant-numeric: tabular-nums; }
-.captains-table td.skill { white-space: nowrap; }
-.skill-bar {
-  display: inline-block; width: 56px; height: 7px; vertical-align: middle;
-  background: var(--row-alt); border-radius: 4px; overflow: hidden; margin-right: 6px;
-}
-.skill-fill { display: block; height: 100%; background: var(--withdraw); }
-.skill-num { font-variant-numeric: tabular-nums; color: var(--muted); }
-.captains-empty { margin: 10px 0 0; }
