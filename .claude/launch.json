@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "p3-autoroute (web)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "p3autoroute", "--web", "--no-browser"],
+      "port": 8765
+    },
+    {
+      "name": "p3-autoroute (native window)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "p3autoroute"]
+    }
+  ]
+}
