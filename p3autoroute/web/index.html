@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>p3-autoroute — route editor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>p3-autoroute</h1>
+    <nav id="tabs">
+      <button data-tab="routes" class="active">Routes</button>
+      <button data-tab="sortings">Sortings</button>
+      <button data-tab="pricings">Pricings</button>
+    </nav>
+    <span id="status"></span>
+    <button id="theme-toggle" title="Toggle theme">🌙</button>
+  </header>
+
+  <main>
+    <section id="tab-routes" class="tab">
+      <div class="folder-bar">
+        <input id="folder-path" type="text" spellcheck="false"
+               placeholder="Path to the game's Save\AutoRoute folder">
+        <button id="pick-folder" title="Select folder">Browse…</button>
+        <button id="open-folder">Open</button>
+        <button id="close-folder" disabled>Close</button>
+      </div>
+      <div class="routes-layout">
+        <aside id="route-list-panel">
+          <div class="panel-head">
+            <input id="route-search" type="text" placeholder="Search…">
+            <button id="new-route" disabled>+ New</button>
+          </div>
+          <ul id="route-list"></ul>
+          <div id="routes-count"></div>
+        </aside>
+        <div id="route-editor" class="hidden">
+          <div class="editor-head">
+            <strong id="route-title"></strong>
+            <div class="spacer"></div>
+            <button id="templates-btn">Templates…</button>
+            <button id="save-route" class="primary">Save</button>
+          </div>
+          <div class="stops-head">
+            <span>Stops <small id="stops-count"></small></span>
+            <button id="add-stop">+ Stop</button>
+            <small class="hint">Drag to reorder</small>
+          </div>
+          <div id="stops-strip"></div>
+          <div id="stop-editor" class="hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-sortings" class="tab hidden"></section>
+    <section id="tab-pricings" class="tab hidden"></section>
+  </main>
+
+  <div id="modal-root"></div>
+  <script src="app.js"></script>
+</body>
+</html>
