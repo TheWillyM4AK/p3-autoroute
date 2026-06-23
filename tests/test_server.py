@@ -98,8 +98,29 @@ def test_http_server():
         status, m = _http_get(base + "/api/meta")
         meta = json.loads(m)
         assert meta["goods"]["count"] == 24 and len(meta["towns"]["names"]) == 24
+        assert len(meta["goods"]["icons"]) == 24
+
+        # The icon files must actually be served (and as PNG).
+        first_icon = next(p for p in meta["goods"]["icons"] if p)
+        status, body = _http_get(base + "/" + first_icon)
+        assert status == 200 and body[:8] == b"\x89PNG\r\n\x1a\n"
     finally:
         httpd.shutdown()
+
+
+def test_good_icons_exist_on_disk():
+    from p3autoroute.paths import web_dir
+    web = web_dir()
+    # One icon per non-weapon good (the 4 weapons have no trade-good symbol).
+    assert len(goods.ICONS) == goods.COUNT
+    for gid, rel in enumerate(goods.ICONS):
+        if goods.VISIBILITY[gid]:
+            assert rel, f"visible good {goods.NAMES[gid]} has no icon"
+            full = os.path.join(web, rel.replace("/", os.sep))
+            with open(full, "rb") as fh:
+                assert fh.read(8) == b"\x89PNG\r\n\x1a\n", rel
+        else:
+            assert rel == "", f"weapon {goods.NAMES[gid]} should have no icon"
 
 
 def _run():

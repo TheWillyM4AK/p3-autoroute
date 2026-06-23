@@ -48,6 +48,14 @@ function h(tag, props, ...children) {
 const $ = (sel) => document.querySelector(sel);
 function setStatus(t) { $("#status").textContent = t; }
 
+// The game's own trade-good symbol for good `g` (or null for the weapons,
+// which have no icon). `goodLabel` pairs it with the name for use as children.
+function goodIcon(g) {
+  const src = META && META.goods.icons && META.goods.icons[g];
+  return src ? h("img", { class: "good-icon", src, alt: "", loading: "lazy" }) : null;
+}
+function goodLabel(g) { return [goodIcon(g), META.goods.names[g]]; }
+
 const RULE_MODES = ["None", "Buy", "Sell", "Withdraw", "Deposit"];
 const STOP_MODES = ["Dock", "Repair", "Skip"];
 
@@ -201,6 +209,28 @@ function initTheme() {
   let saved = "light";
   try { saved = localStorage.getItem("p3theme") || "light"; } catch (e) { /* ignore */ }
   applyTheme(saved === "dark" ? "dark" : "light");
+}
+
+// Weapons visibility (off by default, persisted). When off, the 4 weapon goods
+// are hidden everywhere they are listed: the stop editor, pricings and sortings.
+function applyShowWeapons(on) {
+  state.showWeapons = on;
+  const cb = $("#weapons-toggle");
+  if (cb) cb.checked = on;
+  try { localStorage.setItem("p3showweapons", on ? "1" : "0"); } catch (e) { /* ignore */ }
+}
+function initWeapons() {
+  let on = false;
+  try { on = localStorage.getItem("p3showweapons") === "1"; } catch (e) { /* ignore */ }
+  applyShowWeapons(on);
+}
+function onToggleWeapons(e) {
+  applyShowWeapons(e.target.checked);
+  // Re-render whichever good-listing view is currently on screen.
+  if (state.route && state.selectedStop >= 0) renderStopEditor();
+  const active = document.querySelector("#tabs button.active");
+  if (active && active.dataset.tab === "pricings") renderPricingsTab();
+  else if (active && active.dataset.tab === "sortings") renderSortingsTab();
 }
 
 async function refreshFolder() {
@@ -413,11 +443,7 @@ function renderStopEditor() {
       h("button", { onclick: () => { stop.rules.forEach((r) => r.quantity = 0); renderStopEditor(); } }, "Qty 0"),
       h("button", { onclick: () => { stop.rules.forEach((r) => r.quantity = -1); renderStopEditor(); } }, "Qty max")),
     h("div", { class: "group" }, sortSel),
-    h("div", { class: "group" }, priceSel),
-    h("label", null, h("input", {
-      type: "checkbox", checked: state.showWeapons,
-      onchange: (e) => { state.showWeapons = e.target.checked; renderStopEditor(); },
-    }), " weapons"));
+    h("div", { class: "group" }, priceSel));
 
   const tbody = h("tbody");
   stop.rules.forEach((rule, ri) => {
@@ -437,7 +463,7 @@ function renderStopEditor() {
     });
     const tr = h("tr", { class: "rule" },
       h("td", { class: "grip-cell", title: "Drag to reorder" }, "⠿"),
-      h("td", { class: "good-name" }, META.goods.names[rule.good]),
+      h("td", { class: "good-name" }, goodLabel(rule.good)),
       h("td", null, modeSel),
       h("td", null, priceInp),
       h("td", null, qtyInp));
@@ -500,7 +526,7 @@ function genGoodTable(fields, defaults) {
     if (!META.goods.visibility[g]) continue;
     const enabled = h("input", { type: "checkbox" });
     const inputs = { good: g, enabled };
-    const cells = [h("td", null, enabled), h("td", null, META.goods.names[g])];
+    const cells = [h("td", null, enabled), h("td", { class: "good-name" }, goodLabel(g))];
     if (fields.includes("buying")) {
       inputs.buying = h("input", { type: "number", min: 0, max: 9999, value: dp ? dp.buying[g] : 1 });
       cells.push(h("td", null, inputs.buying));
@@ -628,8 +654,9 @@ function renderSortingsTab() {
     const renderGoods = () => {
       ul.replaceChildren();
       preset.goods.forEach((g, i) => {
+        if (!META.goods.visibility[g] && !state.showWeapons) return;
         const row = h("div", { class: "sorting-good" },
-          h("span", null, "⠿ "), h("span", null, META.goods.names[g]));
+          h("span", null, "⠿ "), goodIcon(g), h("span", null, META.goods.names[g]));
         makeDraggable(row, "sgood", i, (from, to) => { moveItem(preset.goods, from, to); renderGoods(); });
         ul.append(row);
       });
@@ -700,6 +727,7 @@ function renderPricingsTab() {
     const def = META.defaultPricing;
     const rows = [];
     for (let g = 0; g < META.goods.count; g++) {
+      if (!META.goods.visibility[g] && !state.showWeapons) continue;
       const b = h("input", { type: "number", min: 0, max: 9999, value: preset.buying[g],
         onchange: (e) => { preset.buying[g] = parseInt(e.target.value || "0", 10); } });
       const s = h("input", { type: "number", min: 0, max: 9999, value: preset.selling[g],
@@ -709,7 +737,7 @@ function renderPricingsTab() {
         title: "Default buy price" }, defBuy);
       const cSell = h("td", { class: "default-price" + (preset.selling[g] !== defSell ? " diff" : ""),
         title: "Default sell price" }, defSell);
-      rows.push(h("tr", null, h("td", null, META.goods.names[g]),
+      rows.push(h("tr", null, h("td", { class: "good-name" }, goodLabel(g)),
         h("td", null, b), h("td", null, s), cBuy, cSell));
     }
     editor = h("div", { class: "preset-editor" },
@@ -757,6 +785,8 @@ async function deletePricing(id) {
 async function init() {
   initTheme();
   $("#theme-toggle").addEventListener("click", toggleTheme);
+  initWeapons();
+  $("#weapons-toggle").addEventListener("change", onToggleWeapons);
   META = await api("/api/meta");
   await Promise.all([reloadSortings(), reloadPricings()]);
   setupTabs();

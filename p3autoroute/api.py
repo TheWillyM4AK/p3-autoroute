@@ -29,7 +29,8 @@ class Api:
     def meta(self, params=None) -> dict:
         return {
             "goods": {"names": goods.NAMES, "visibility": goods.VISIBILITY,
-                      "sizes": goods.SIZES, "count": goods.COUNT},
+                      "sizes": goods.SIZES, "icons": goods.ICONS,
+                      "count": goods.COUNT},
             "defaultPricing": {"buying": list(DEFAULT_BUYING),
                                "selling": list(DEFAULT_SELLING)},
             "towns": {"names": towns.NAMES, "count": towns.COUNT},

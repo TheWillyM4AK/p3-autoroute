@@ -12,6 +12,11 @@ templates (Day Trader, Seller, Supplier, Sucker, Sucker → Warehouse).
 > [Benedikt Radtke](https://github.com/Trolldemorted)
 > ([p3-lib](https://github.com/P3Modding/p3-lib/blob/master/p3-rou/src/lib.rs)).
 > Distributed under **GPLv3** (see [LICENSE](LICENSE)), like the original.
+>
+> The trade-good icons in [`web/assets/goods/`](p3autoroute/web/assets/goods)
+> are the game's own symbols, taken from the
+> [Patrician III Wiki](https://patrician3.fandom.com/). They remain the property
+> of the game's rights holders and are included only to identify each good.
 
 ## Architecture
 
