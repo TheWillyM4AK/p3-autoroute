@@ -46,6 +46,20 @@ NAMES = [
     "Pottery", "Bricks", "Sword", "Bow", "Crossbow", "Carbine",
 ]
 
+# Icon file per good (relative to the web/ root), indexed by good id. These are
+# the game's own trade-good symbols, sourced from the Patrician III wiki. The 4
+# weapons have no trade-good icon (and are hidden by default), so they are "".
+ICONS = [
+    "assets/goods/grain.png", "assets/goods/meat.png", "assets/goods/fish.png",
+    "assets/goods/beer.png", "assets/goods/salt.png", "assets/goods/honey.png",
+    "assets/goods/spices.png", "assets/goods/wine.png", "assets/goods/cloth.png",
+    "assets/goods/skins.png", "assets/goods/oil.png", "assets/goods/timber.png",
+    "assets/goods/iron_goods.png", "assets/goods/leather.png", "assets/goods/wool.png",
+    "assets/goods/pitch.png", "assets/goods/pig_iron.png", "assets/goods/hemp.png",
+    "assets/goods/pottery.png", "assets/goods/bricks.png",
+    "", "", "", "",
+]
+
 # The 4 weapons are not shown by default in the original UI.
 VISIBILITY = [
     True, True, True, True, True, True,

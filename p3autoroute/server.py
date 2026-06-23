@@ -20,7 +20,8 @@ from .paths import web_dir
 
 WEB_DIR = web_dir()
 _CONTENT_TYPES = {".html": "text/html", ".js": "text/javascript",
-                  ".css": "text/css", ".svg": "image/svg+xml"}
+                  ".css": "text/css", ".svg": "image/svg+xml",
+                  ".png": "image/png"}
 
 
 class Handler(BaseHTTPRequestHandler):

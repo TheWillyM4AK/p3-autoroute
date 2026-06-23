@@ -77,6 +77,9 @@ header {
 #tabs { display: flex; gap: 4px; }
 #tabs button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 #status { margin-left: auto; color: var(--muted); font-size: 13px; }
+#weapons-toggle-label { display: flex; align-items: center; gap: 5px;
+  color: var(--muted); font-size: 13px; cursor: pointer; user-select: none; }
+#weapons-toggle-label input { cursor: pointer; }
 #theme-toggle { padding: 4px 9px; font-size: 15px; line-height: 1; }
 body { transition: background .15s, color .15s; }
 
@@ -137,6 +140,11 @@ table.rules tr.rule { cursor: default; }
 table.rules tr.dragover td { box-shadow: inset 0 2px 0 var(--accent); }
 .grip-cell { cursor: grab; color: var(--muted); width: 18px; text-align: center; }
 .good-name { font-weight: 600; }
+/* The game's trade-good symbol shown next to each good name. Native size is
+   21px, so ~20px renders crisp; the radius softens the icon's tile border. */
+.good-icon { width: 20px; height: 20px; vertical-align: middle; margin-right: 8px;
+  border-radius: 3px; image-rendering: -webkit-optimize-contrast; }
+.sorting-good .good-icon { margin-right: 0; } /* flex gap handles the spacing */
 select.mode-sel-1 { color: var(--buy); }
 select.mode-sel-2 { color: var(--sell); }
 select.mode-sel-3 { color: var(--withdraw); }
