@@ -89,11 +89,11 @@ main { padding: 16px; }
 .folder-bar { display: flex; gap: 8px; margin-bottom: 14px; }
 #folder-path { flex: 1; }
 
-.routes-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+.routes-layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
 #route-list-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
 .panel-head { display: flex; gap: 6px; margin-bottom: 8px; }
 .panel-head input { flex: 1; }
-#route-list { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow: auto; }
+#route-list { list-style: none; margin: 0; padding: 0; max-height: 34vh; overflow: auto; }
 #route-list li {
   display: flex; align-items: center; gap: 4px; padding: 6px 4px;
   border-radius: 6px; border: 1px solid transparent;
@@ -104,14 +104,18 @@ main { padding: 16px; }
 #route-list .icon { padding: 2px 6px; font-size: 12px; }
 #routes-count { color: var(--muted); font-size: 12px; margin-top: 6px; text-align: right; }
 
+/* Stops manager — lives under the route list in the left column. */
+#stops-manager { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.stops-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.stops-hint { display: block; color: var(--muted); margin-bottom: 8px; }
+
 #route-editor { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .editor-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .editor-head .spacer { flex: 1; }
-.stops-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 
 #stops-strip {
   display: flex; flex-direction: column; gap: 8px;
-  overflow-y: auto; max-height: 420px; padding-right: 8px; min-height: 96px;
+  overflow-y: auto; max-height: 46vh; padding-right: 8px; min-height: 96px;
 }
 .stop-card {
   flex: 0 0 auto; border: 1px solid var(--line); border-radius: 8px;
@@ -128,7 +132,7 @@ main { padding: 16px; }
 .mode-REPAIR { color: var(--withdraw); }
 .mode-SKIP { color: var(--muted); }
 
-#stop-editor { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+#stop-editor { margin-top: 0; }
 .stop-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
 .stop-toolbar .group { display: flex; gap: 4px; align-items: center; }
 .stop-toolbar label { color: var(--muted); font-size: 12px; }

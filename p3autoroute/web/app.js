@@ -322,8 +322,10 @@ function newStop(town = 0) {
 
 function renderEditor() {
   const ed = $("#route-editor");
-  if (!state.route) { ed.classList.add("hidden"); return; }
+  const sm = $("#stops-manager");
+  if (!state.route) { ed.classList.add("hidden"); sm.classList.add("hidden"); return; }
   ed.classList.remove("hidden");
+  sm.classList.remove("hidden");
   $("#route-title").textContent = state.route.name;
   $("#stops-count").textContent = `(${state.route.stops.length}/${META.maxStops})`;
   renderStops();
@@ -372,6 +374,19 @@ function deleteStop(i) {
   state.route.stops.splice(i, 1);
   if (state.selectedStop >= state.route.stops.length) state.selectedStop = state.route.stops.length - 1;
   renderEditor();
+}
+
+// Copy the previous stop's trade configuration (its stop mode and 24 rules)
+// onto stop `i`, keeping this stop's own town. Deep-copied so the two stops
+// stay independent afterwards.
+function copyPrevStop(i) {
+  if (i <= 0) return;
+  const prev = state.route.stops[i - 1];
+  const cur = state.route.stops[i];
+  cur.mode = prev.mode;
+  cur.rules = JSON.parse(JSON.stringify(prev.rules));
+  renderEditor();
+  setStatus(`Stop #${i + 1} copied the config of stop #${i}`);
 }
 
 function addStop() {
@@ -478,7 +493,12 @@ function renderStopEditor() {
     h("strong", null, "Stop #" + (state.selectedStop + 1) + " — " + META.towns.names[stop.town]),
     h("div", { class: "group" },
       h("button", { onclick: () => navStop(-1) }, "‹ Previous"),
-      h("button", { onclick: () => navStop(1) }, "Next ›")),
+      h("button", { onclick: () => navStop(1) }, "Next ›"),
+      h("button", {
+        title: "Copy config from the previous stop (keeps this stop's town)",
+        disabled: state.selectedStop === 0,
+        onclick: () => copyPrevStop(state.selectedStop),
+      }, "↧ Copy previous")),
     h("div", { class: "group" }, bulkMode),
     h("div", { class: "group" },
       h("button", { onclick: () => { stop.rules.forEach((r) => r.quantity = 0); renderStopEditor(); } }, "Qty 0"),
@@ -489,10 +509,6 @@ function renderStopEditor() {
   const tbody = h("tbody");
   stop.rules.forEach((rule, ri) => {
     if (!META.goods.visibility[rule.good] && !state.showWeapons) return;
-    const modeSel = h("select", {
-      class: "mode-sel-" + rule.mode,
-      onchange: (e) => { rule.mode = parseInt(e.target.value, 10); e.target.className = "mode-sel-" + rule.mode; },
-    }, RULE_MODES.map((n, idx) => h("option", { value: idx, selected: idx === rule.mode }, n)));
     const priceInp = h("input", {
       type: "number", min: 0, max: 9999, value: rule.price,
       onchange: (e) => { rule.price = parseInt(e.target.value || "0", 10); },
@@ -502,6 +518,17 @@ function renderStopEditor() {
       title: "-1 = maximum",
       onchange: (e) => { rule.quantity = parseInt(e.target.value || "0", 10); },
     });
+    const modeSel = h("select", {
+      class: "mode-sel-" + rule.mode,
+      onchange: (e) => {
+        rule.mode = parseInt(e.target.value, 10);
+        e.target.className = "mode-sel-" + rule.mode;
+        // Choosing any of the 4 trade modes (Buy/Sell/Withdraw/Deposit)
+        // resets the amount to the "maximum" sentinel (-1); only "None" is
+        // left untouched.
+        if (rule.mode !== 0) { rule.quantity = -1; qtyInp.value = -1; }
+      },
+    }, RULE_MODES.map((n, idx) => h("option", { value: idx, selected: idx === rule.mode }, n)));
     const tr = h("tr", { class: "rule" },
       h("td", { class: "grip-cell", title: "Drag to reorder" }, "⠿"),
       h("td", { class: "good-name" }, goodLabel(rule.good)),
