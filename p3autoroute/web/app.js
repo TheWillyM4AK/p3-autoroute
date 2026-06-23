@@ -518,6 +518,8 @@ function renderStopEditor() {
       title: "-1 = maximum",
       onchange: (e) => { rule.quantity = parseInt(e.target.value || "0", 10); },
     });
+    // Each option is tinted with its mode colour (mode-opt-N), matching the
+    // colour the closed <select> takes once that mode is picked (mode-sel-N).
     const modeSel = h("select", {
       class: "mode-sel-" + rule.mode,
       onchange: (e) => {
@@ -528,7 +530,7 @@ function renderStopEditor() {
         // left untouched.
         if (rule.mode !== 0) { rule.quantity = -1; qtyInp.value = -1; }
       },
-    }, RULE_MODES.map((n, idx) => h("option", { value: idx, selected: idx === rule.mode }, n)));
+    }, RULE_MODES.map((n, idx) => h("option", { value: idx, class: "mode-opt-" + idx, selected: idx === rule.mode }, n)));
     const tr = h("tr", { class: "rule" },
       h("td", { class: "grip-cell", title: "Drag to reorder" }, "⠿"),
       h("td", { class: "good-name" }, goodLabel(rule.good)),
