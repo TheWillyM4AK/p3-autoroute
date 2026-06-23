@@ -16,7 +16,10 @@ templates (Day Trader, Seller, Supplier, Sucker, Sucker → Warehouse).
 > The trade-good icons in [`web/assets/goods/`](p3autoroute/web/assets/goods)
 > are the game's own symbols, taken from the
 > [Patrician III Wiki](https://patrician3.fandom.com/). They remain the property
-> of the game's rights holders and are included only to identify each good.
+> of the game's rights holders and are included only to identify each good. The
+> per-rule trade-mode glyphs (buy / sell / warehouse withdraw / deposit) are
+> original inline-SVG reconstructions of the game's pill buttons, drawn in
+> [`web/app.js`](p3autoroute/web/app.js) (`MODE_ICONS`).
 
 ## Architecture
 

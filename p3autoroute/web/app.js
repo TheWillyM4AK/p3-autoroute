@@ -59,6 +59,51 @@ function goodLabel(g) { return [goodIcon(g), META.goods.names[g]]; }
 const RULE_MODES = ["None", "Buy", "Sell", "Withdraw", "Deposit"];
 const STOP_MODES = ["Dock", "Repair", "Skip"];
 
+// The game's own trade-mode glyphs, rebuilt as inline SVG (the originals only
+// exist baked into game screenshots, not as standalone images). They mirror the
+// Patrician III auto-route pill buttons: two gabled houses = trade with the
+// town (Buy/Sell), a 2x2 grid = the warehouse/Kontor manager (Withdraw/Deposit).
+// A block arrow on the left points INTO the ship (Buy/Withdraw, blue pill) or
+// OUT of it (Sell/Deposit, amber pill); None is an empty pill with a dash. The
+// glyph is white (`currentColor`, set by .mode-btn); one entry per RuleMode
+// index (0=None…4=Deposit). Layout matches the game: arrow left, figure right.
+const _HOUSES = '<path d="M18,9 L19.5,5 L21,9 L22.5,5 L24,9 V15 H18 Z"/>' +
+  '<path d="M24.5,9 L26,5 L27.5,9 L29,5 L30.5,9 V15 H24.5 Z"/>';
+const _GRID = '<g fill="none" stroke="currentColor" stroke-width="1.7">' +
+  '<rect x="19" y="5" width="11" height="11"/><path d="M24.5,5 V16 M19,10.5 H30"/></g>';
+const _ARROW_IN = '<path d="M3,9 L9,4 V6.6 H15 V11.4 H9 V14 Z"/>';   // ← into ship
+const _ARROW_OUT = '<path d="M15,9 L9,4 V6.6 H3 V11.4 H9 V14 Z"/>';  // → out of ship
+const _SVG = (body) =>
+  '<svg viewBox="0 0 33 20" height="18" fill="currentColor" aria-hidden="true">' + body + '</svg>';
+const MODE_ICONS = [
+  _SVG('<path stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12,10 H21"/>'), // None
+  _SVG(_ARROW_IN + _HOUSES),   // Buy      — from town into ship
+  _SVG(_ARROW_OUT + _HOUSES),  // Sell     — from ship into town
+  _SVG(_ARROW_IN + _GRID),     // Withdraw — from warehouse into ship
+  _SVG(_ARROW_OUT + _GRID),    // Deposit  — from ship into warehouse
+];
+function modeIcon(mode) { return h("span", { class: "mode-icon", html: MODE_ICONS[mode] || MODE_ICONS[0] }); }
+
+// A single cycling button standing in for the old per-rule mode <select>: it
+// shows the current mode's game glyph as a coloured pill; left-click advances,
+// right-click goes back, wrapping the 5 modes. `onset` is called with the mode.
+function setModeBtn(btn, mode) {
+  btn.className = "mode-btn mode-btn-" + mode;
+  btn.title = RULE_MODES[mode] + " — click to change (right-click to go back)";
+  btn.replaceChildren(modeIcon(mode));
+}
+function modeButton(mode, onset) {
+  const btn = h("button", { type: "button" });
+  const step = (delta) => {
+    mode = (mode + delta + RULE_MODES.length) % RULE_MODES.length;
+    setModeBtn(btn, mode); onset(mode);
+  };
+  btn.addEventListener("click", () => step(1));
+  btn.addEventListener("contextmenu", (e) => { e.preventDefault(); step(-1); });
+  setModeBtn(btn, mode);
+  return btn;
+}
+
 let META = null;
 const state = {
   folder: "",
@@ -448,10 +493,7 @@ function renderStopEditor() {
   const tbody = h("tbody");
   stop.rules.forEach((rule, ri) => {
     if (!META.goods.visibility[rule.good] && !state.showWeapons) return;
-    const modeSel = h("select", {
-      class: "mode-sel-" + rule.mode,
-      onchange: (e) => { rule.mode = parseInt(e.target.value, 10); e.target.className = "mode-sel-" + rule.mode; },
-    }, RULE_MODES.map((n, idx) => h("option", { value: idx, selected: idx === rule.mode }, n)));
+    const modeSel = modeButton(rule.mode, (m) => { rule.mode = m; });
     const priceInp = h("input", {
       type: "number", min: 0, max: 9999, value: rule.price,
       onchange: (e) => { rule.price = parseInt(e.target.value || "0", 10); },

@@ -145,10 +145,19 @@ table.rules tr.dragover td { box-shadow: inset 0 2px 0 var(--accent); }
 .good-icon { width: 20px; height: 20px; vertical-align: middle; margin-right: 8px;
   border-radius: 3px; image-rendering: -webkit-optimize-contrast; }
 .sorting-good .good-icon { margin-right: 0; } /* flex gap handles the spacing */
-select.mode-sel-1 { color: var(--buy); }
-select.mode-sel-2 { color: var(--sell); }
-select.mode-sel-3 { color: var(--withdraw); }
-select.mode-sel-4 { color: var(--deposit); }
+/* Cycling per-rule mode button, styled as the game's pill: a white trade glyph
+   on a coloured background. Game palette is two-tone — blue = goods INTO the
+   ship (Buy/Withdraw), amber = OUT of it (Sell/Deposit); None is an empty pill.
+   The inline SVG inherits `currentColor`, so the pill's text colour is the
+   glyph colour. */
+.mode-btn { display: inline-flex; align-items: center; justify-content: center;
+  padding: 2px 12px; min-height: 24px; cursor: pointer; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--row-alt); color: var(--muted); }
+.mode-btn .mode-icon { display: inline-flex; }
+.mode-btn .mode-icon svg { display: block; }
+.mode-btn:hover { filter: brightness(1.08); }
+.mode-btn-1, .mode-btn-3 { color: #fff; background: var(--withdraw); border-color: transparent; } /* into ship */
+.mode-btn-2, .mode-btn-4 { color: #fff; background: var(--sell); border-color: transparent; }     /* out of ship */
 
 /* Presets tabs */
 .preset-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
