@@ -106,9 +106,12 @@ main { padding: 16px; }
 .editor-head .spacer { flex: 1; }
 .stops-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 
-#stops-strip { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; min-height: 96px; }
+#stops-strip {
+  display: flex; flex-direction: column; gap: 8px;
+  overflow-y: auto; max-height: 420px; padding-right: 8px; min-height: 96px;
+}
 .stop-card {
-  flex: 0 0 150px; border: 1px solid var(--line); border-radius: 8px;
+  flex: 0 0 auto; border: 1px solid var(--line); border-radius: 8px;
   background: var(--field); padding: 8px; display: flex; flex-direction: column; gap: 6px;
 }
 .stop-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--glow) inset; }
