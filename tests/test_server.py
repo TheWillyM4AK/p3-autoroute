@@ -12,7 +12,7 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from p3autoroute import generators, goods, rou, server  # noqa: E402
+from p3autoroute import generators, goods, production, rou, server, towns  # noqa: E402
 from p3autoroute.api import Api  # noqa: E402
 from p3autoroute.models import Route  # noqa: E402
 
@@ -99,6 +99,8 @@ def test_http_server():
         meta = json.loads(m)
         assert meta["goods"]["count"] == 24 and len(meta["towns"]["names"]) == 24
         assert len(meta["goods"]["icons"]) == 24
+        assert len(meta["production"]["producers"]) == 24
+        assert len(meta["production"]["consumable"]) == 24
 
         # The icon files must actually be served (and as PNG).
         first_icon = next(p for p in meta["goods"]["icons"] if p)
@@ -106,6 +108,37 @@ def test_http_server():
         assert status == 200 and body[:8] == b"\x89PNG\r\n\x1a\n"
     finally:
         httpd.shutdown()
+
+
+def test_production_data_integrity():
+    # One producer list per good, all town ids valid; the 4 weapons have none.
+    assert len(production.PRODUCERS) == goods.COUNT
+    assert len(production.CONSUMABLE) == goods.COUNT
+    for gid, prod in enumerate(production.PRODUCERS):
+        assert len(set(prod)) == len(prod), f"duplicate town in good {gid}"
+        for t in prod:
+            assert 0 <= t < towns.COUNT, f"bad town id {t} in good {gid}"
+        if gid in (20, 21, 22, 23):  # weapons
+            assert prod == [] and not production.CONSUMABLE[gid]
+        else:
+            assert prod, f"good {goods.NAMES[gid]} has no producers"
+            assert production.CONSUMABLE[gid]
+
+
+def test_production_buy_sell_model():
+    # A producing town is a BUY candidate and never also a SELL candidate;
+    # a consumable good not produced locally is a SELL candidate.
+    grain = int(goods.Good.GRAIN)
+    for gid in range(goods.COUNT):
+        for t in range(towns.COUNT):
+            if production.produces(t, gid):
+                assert not production.demands(t, gid)
+            elif production.CONSUMABLE[gid]:
+                assert production.demands(t, gid)
+            else:
+                assert not production.demands(t, gid)
+    # Spot check: Grain is produced in Hamburg (8) and demanded in Cologne (5).
+    assert production.produces(8, grain) and production.demands(5, grain)
 
 
 def test_good_icons_exist_on_disk():

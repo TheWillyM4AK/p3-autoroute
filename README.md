@@ -5,6 +5,11 @@ and save routes through a local desktop UI. It lets you **reorder stops and good
 by dragging**, apply sorting and pricing presets, and generate full routes from
 templates (Day Trader, Seller, Supplier, Sucker, Sucker → Warehouse).
 
+Switching a good to **Buy/Sell auto-fills its default price**, and **Trade a
+good…** picks one good and marks the route's existing stops Buy or Sell —
+producing towns buy it, the rest (that consume it) sell it — each at its default
+price, using the built-in town production/demand map.
+
 > **Attribution.** This project is a *port* of **Marco Zanella's** original
 > **Godot/GDScript** editor (<https://github.com/marco-zanella/p3-autoroute>),
 > rewritten in **Python + HTML/CSS/JS**. The `.rou` (de)compression algorithm
@@ -91,6 +96,7 @@ p3autoroute/
 ├─ compressor.py   # LZ77 (de)compressor for the .rou format
 ├─ rou.py          # .rou serialization/reading + RouteRepository
 ├─ presets.py      # sorting and pricing presets (JSON) + apply
+├─ production.py    # static town production/demand map (which town buys/sells a good)
 ├─ generators.py   # 5 route generators (templates)
 ├─ settings.py     # persisted settings (e.g. last opened folder)
 ├─ api.py          # Api class: ALL the logic (js_api bridge and server)
