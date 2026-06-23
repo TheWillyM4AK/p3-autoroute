@@ -1,0 +1,8 @@
+# Runtime (desktop app):
+pywebview>=5.0        # native window + js_api bridge (uses WebView2 on Windows)
+
+# The fallback web mode (python -m p3autoroute --web) and the .rou format core
+# require no external dependencies (standard library only).
+
+# Only needed to build the .exe (not required to run from source):
+#   pip install pyinstaller
