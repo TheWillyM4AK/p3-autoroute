@@ -98,6 +98,14 @@ quantities are indexed by good id. Key encoding rules (in `rou.py`):
 - [`presets.py`](p3autoroute/presets.py) — Sorting (a 24-good permutation) and
   Pricing (buy/sell price per good) presets, persisted as JSON via a shared
   `_Store`. Seeds are written only when the user has none of their own.
+- [`production.py`](p3autoroute/production.py) — a **static** town×good
+  production/demand map (curated from community references; the `.rou` format has
+  no economic data). Drives the frontend's "Trade a good" action: a town
+  `produces` a good → Buy, or `demands` it (consumable & not produced) → Sell. It
+  is exposed to the frontend via `Api.meta` (`production.producers`/`consumable`);
+  the marking itself happens client-side in `app.js`, like the sorting/pricing
+  apply actions. Switching a rule to Buy/Sell also auto-fills the default price
+  there.
 
 ### Persistence and paths
 

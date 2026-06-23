@@ -258,6 +258,32 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
   #save-route, #save-route * { animation: none !important; }
 }
 
+/* Trade-a-good modal ---------------------------------------------------- */
+.trade-modal .good-picker {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px; max-height: 240px; overflow: auto; margin: 4px 0 12px;
+  padding: 4px; border: 1px solid var(--line); border-radius: 6px;
+}
+.trade-modal .good-chip {
+  display: flex; align-items: center; gap: 6px; text-align: left;
+  padding: 5px 8px; font-size: 13px;
+}
+.trade-modal .good-chip.selected {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+}
+.trade-modal .good-chip .good-icon { margin-right: 0; }
+.trade-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.trade-table th, .trade-table td {
+  padding: 4px 8px; border-bottom: 1px solid var(--row-alt); text-align: left;
+}
+.trade-table th { color: var(--muted); font-weight: 600; }
+.trade-table .tp-num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.trade-table .tp-town { font-weight: 600; }
+.trade-table .tp-price { text-align: right; font-variant-numeric: tabular-nums; }
+.trade-table tr.tp-buy .tp-act { color: var(--buy); font-weight: 600; }
+.trade-table tr.tp-sell .tp-act { color: var(--sell); font-weight: 600; }
+.trade-table tr.tp-none { color: var(--muted); }
+
 /* Captains modal -------------------------------------------------------- */
 #captains-btn { margin-left: 4px; }
 .captains-body { min-height: 60px; }

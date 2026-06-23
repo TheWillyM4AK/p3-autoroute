@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 
-from . import generators, goods, settings, towns
+from . import generators, goods, production, settings, towns
 from .models import Route, RuleMode, StopMode, TradeStop, default_rules
 from .presets import (
     DEFAULT_BUYING, DEFAULT_SELLING,
@@ -40,6 +40,8 @@ class Api:
             "defaultPricing": {"buying": list(DEFAULT_BUYING),
                                "selling": list(DEFAULT_SELLING)},
             "towns": {"names": towns.NAMES, "count": towns.COUNT},
+            "production": {"producers": production.PRODUCERS,
+                           "consumable": production.CONSUMABLE},
             "ruleModes": [m.name for m in RuleMode],
             "stopModes": [m.name for m in StopMode],
             "maxStops": generators.MAX_STOPS,

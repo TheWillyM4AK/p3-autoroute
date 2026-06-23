@@ -312,6 +312,23 @@ function defaultSorting() {
   return state.sortings.find((s) => s.is_default) || state.sortings[0];
 }
 
+// The pricing whose buy/sell prices auto-fill a rule when its mode is set to
+// Buy/Sell: the user's default preset, falling back to the built-in defaults.
+// Both shapes expose .buying/.selling indexed by good id.
+function defaultPricing() {
+  return state.pricings.find((p) => p.is_default) || state.pricings[0] || META.defaultPricing;
+}
+
+// Buy mode (1) takes the default buy price; Sell (2) the default sell price;
+// any other mode leaves the price untouched. Returns null when unchanged.
+function autoPriceFor(good, mode) {
+  const dp = defaultPricing();
+  if (!dp) return null;
+  if (mode === 1) return dp.buying[good];
+  if (mode === 2) return dp.selling[good];
+  return null;
+}
+
 function newStop(town = 0) {
   const order = defaultSorting() ? defaultSorting().goods : [...Array(META.goods.count).keys()];
   const rules = [];
@@ -461,7 +478,16 @@ function renderStopEditor() {
   bulkMode.addEventListener("change", () => {
     if (bulkMode.value === "") return;
     const m = parseInt(bulkMode.value, 10);
-    stop.rules.forEach((r) => { r.mode = m; });
+    stop.rules.forEach((r) => {
+      r.mode = m;
+      if (m === 0) {
+        // None clears each rule: price and quantity back to zero.
+        r.price = 0; r.quantity = 0;
+      } else {
+        const ap = autoPriceFor(r.good, m);
+        if (ap != null) r.price = ap;
+      }
+    });
     bulkMode.value = ""; renderStopEditor();
   });
 
@@ -525,10 +551,19 @@ function renderStopEditor() {
       onchange: (e) => {
         rule.mode = parseInt(e.target.value, 10);
         e.target.className = "mode-sel-" + rule.mode;
-        // Choosing any of the 4 trade modes (Buy/Sell/Withdraw/Deposit)
-        // resets the amount to the "maximum" sentinel (-1); only "None" is
-        // left untouched.
-        if (rule.mode !== 0) { rule.quantity = -1; qtyInp.value = -1; }
+        if (rule.mode === 0) {
+          // None clears the rule: price and quantity go back to zero.
+          rule.price = 0; priceInp.value = 0;
+          rule.quantity = 0; qtyInp.value = 0;
+        } else {
+          // The 4 trade modes (Buy/Sell/Withdraw/Deposit) reset the amount to
+          // the "maximum" sentinel (-1)...
+          rule.quantity = -1; qtyInp.value = -1;
+          // ...and Buy/Sell also auto-fill the matching default price, whatever
+          // the previous mode was.
+          const ap = autoPriceFor(rule.good, rule.mode);
+          if (ap != null) { rule.price = ap; priceInp.value = ap; }
+        }
       },
     }, RULE_MODES.map((n, idx) => h("option", { value: idx, class: "mode-opt-" + idx, selected: idx === rule.mode }, n)));
     const tr = h("tr", { class: "rule" },
@@ -640,6 +675,123 @@ function openCaptains() {
   }
   refreshBtn.addEventListener("click", load);
   load();
+}
+
+// --------------------------------------------------------------------------
+// Trade a good — mark Buy/Sell across the open route's existing stops
+// --------------------------------------------------------------------------
+// Producing towns become Buy (at the default buy price), the rest that consume
+// the good become Sell (at the default sell price). Only existing DOCK stops
+// are touched; no stops are added. Production/demand comes from META.production.
+function tradeActionFor(town, good) {
+  const prod = (META.production && META.production.producers[good]) || [];
+  if (prod.includes(town)) return "buy";
+  if (META.production && META.production.consumable[good]) return "sell";
+  return null; // weapons / non-consumable goods have no town demand
+}
+
+function openTradeGood() {
+  if (!state.route) { setStatus("Open a route first."); return; }
+  // Only dockable stops trade; skips/repairs are left alone.
+  const dockStops = state.route.stops
+    .map((s, i) => ({ s, i }))
+    .filter((x) => x.s.mode === 0);
+  const dp = defaultPricing();
+  let selectedGood = null;
+  const include = {}; // stop index -> included? (defaults to true when actionable)
+
+  const preview = h("div", { class: "trade-preview" });
+  const qtyInp = h("input", { type: "number", min: -1, max: 9999, value: -1, title: "-1 = maximum" });
+  const applyBtn = h("button", { class: "primary", disabled: true }, "Apply to route");
+
+  function renderPreview() {
+    preview.replaceChildren();
+    if (selectedGood == null) {
+      preview.append(h("p", { class: "hint" }, "Pick a good above to preview which stops will Buy or Sell it."));
+      applyBtn.disabled = true; return;
+    }
+    if (!dockStops.length) {
+      preview.append(h("p", { class: "hint" }, "This route has no dockable stops to mark yet."));
+      applyBtn.disabled = true; return;
+    }
+    const rows = [];
+    let anyAction = false;
+    dockStops.forEach(({ s, i }) => {
+      const act = tradeActionFor(s.town, selectedGood);
+      const price = act === "buy" ? dp.buying[selectedGood]
+        : act === "sell" ? dp.selling[selectedGood] : null;
+      const cb = h("input", { type: "checkbox" });
+      if (act) {
+        anyAction = true;
+        if (include[i] === undefined) include[i] = true;
+        cb.checked = include[i];
+        cb.addEventListener("change", () => { include[i] = cb.checked; });
+      } else {
+        cb.disabled = true;
+      }
+      rows.push(h("tr", { class: "tp-" + (act || "none") },
+        h("td", null, act ? cb : ""),
+        h("td", { class: "tp-num" }, "#" + (i + 1)),
+        h("td", { class: "tp-town" }, META.towns.names[s.town]),
+        h("td", { class: "tp-act" }, act === "buy" ? "Buy" : act === "sell" ? "Sell" : "—"),
+        h("td", { class: "tp-price" }, price == null ? "" : String(price))));
+    });
+    preview.append(h("table", { class: "trade-table" },
+      h("thead", null, h("tr", null,
+        h("th", null, ""), h("th", null, "#"), h("th", null, "Town"),
+        h("th", null, "Action"), h("th", null, "Price"))),
+      h("tbody", null, rows)));
+    applyBtn.disabled = !anyAction;
+  }
+
+  const picker = h("div", { class: "good-picker" });
+  for (let g = 0; g < META.goods.count; g++) {
+    if (!META.goods.visibility[g] && !state.showWeapons) continue;
+    const chip = h("button", { class: "good-chip", type: "button" },
+      goodIcon(g), h("span", null, META.goods.names[g]));
+    chip.addEventListener("click", () => {
+      selectedGood = g;
+      for (const k in include) delete include[k];
+      picker.querySelectorAll(".good-chip").forEach((c) => c.classList.remove("selected"));
+      chip.classList.add("selected");
+      renderPreview();
+    });
+    picker.append(chip);
+  }
+
+  const node = h("div", { class: "modal trade-modal" },
+    h("h2", null, "📦 Start trading a good"),
+    h("p", { class: "hint" },
+      "Producing towns are set to Buy, the rest (that consume it) to Sell — each "
+      + "at its default price. Only this route's existing stops are changed."),
+    picker,
+    h("div", { class: "dialog-row" },
+      h("label", null, "Quantity:"), qtyInp, h("small", { class: "hint" }, "-1 = maximum")),
+    preview,
+    h("div", { class: "modal-actions" },
+      h("button", { onclick: () => close() }, "Cancel"), applyBtn));
+  const close = modal(node);
+
+  applyBtn.addEventListener("click", () => {
+    if (selectedGood == null) return;
+    const q = parseInt(qtyInp.value || "-1", 10);
+    let changed = 0;
+    dockStops.forEach(({ s, i }) => {
+      const act = tradeActionFor(s.town, selectedGood);
+      if (!act || include[i] === false) return;
+      const rule = s.rules.find((r) => r.good === selectedGood);
+      if (!rule) return;
+      rule.mode = act === "buy" ? 1 : 2;
+      rule.price = act === "buy" ? dp.buying[selectedGood] : dp.selling[selectedGood];
+      rule.quantity = q;
+      changed++;
+    });
+    close();
+    setStatus(`Marked "${META.goods.names[selectedGood]}" in ${changed} stop(s) — remember to Save`);
+    renderEditor();
+  });
+
+  renderPreview();
 }
 
 function openTemplates() {
@@ -945,6 +1097,7 @@ async function init() {
   $("#new-route").addEventListener("click", newRoute);
   $("#add-stop").addEventListener("click", addStop);
   $("#save-route").addEventListener("click", saveRoute);
+  $("#trade-good-btn").addEventListener("click", openTradeGood);
   $("#templates-btn").addEventListener("click", openTemplates);
   $("#captains-btn").addEventListener("click", openCaptains);
   setStatus("Ready. Open your game's Save\\AutoRoute folder.");
