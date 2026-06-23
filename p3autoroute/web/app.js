@@ -766,8 +766,9 @@ function renderPricingsTab() {
   let editor;
   if (preset) {
     const def = META.defaultPricing;
+    const order = defaultSorting() ? defaultSorting().goods : [...Array(META.goods.count).keys()];
     const rows = [];
-    for (let g = 0; g < META.goods.count; g++) {
+    for (const g of order) {
       if (!META.goods.visibility[g] && !state.showWeapons) continue;
       const b = h("input", { type: "number", min: 0, max: 9999, value: preset.buying[g],
         onchange: (e) => { preset.buying[g] = parseInt(e.target.value || "0", 10); } });
