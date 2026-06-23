@@ -22,8 +22,14 @@ from .rou import RouteRepository
 class Api:
     def __init__(self, window=None):
         # `window` is set in desktop mode (PyWebView) for the native folder
-        # picker; in web mode it stays None.
-        self.window = window
+        # picker; in web mode it stays None. The name MUST start with an
+        # underscore: PyWebView's js_api bridge recursively introspects every
+        # *public* attribute of this instance to expose it to the frontend, and
+        # the native Window object graph is cyclic (its .NET WinForms `Bounds`
+        # value-types return a fresh object on each access, defeating pywebview's
+        # id()-based cycle guard), which crashes the bridge with "maximum
+        # recursion depth exceeded". A leading underscore makes pywebview skip it.
+        self._window = window
 
     # --------------------------------------------------------------- meta
     def meta(self, params=None) -> dict:
@@ -45,10 +51,10 @@ class Api:
     # --------------------------------------------------------------- folder
     def pick_folder(self, params=None) -> dict:
         """Open the native folder picker (desktop mode only)."""
-        if self.window is None:
+        if self._window is None:
             return {"ok": False, "error": "The native picker is only available in the desktop app"}
         import webview
-        result = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+        result = self._window.create_file_dialog(webview.FOLDER_DIALOG)
         if not result:
             return {"ok": False, "error": "cancelled"}
         path = result[0] if isinstance(result, (list, tuple)) else result

@@ -112,3 +112,13 @@ keep that branch working when changing how resources are located.
 - License is **GPLv3** (inherited from the original); keep attribution intact.
 - The frontend is intentionally dependency-free vanilla JS with a tiny `h()`
   DOM helper — no build step, no framework. Theming is via CSS variables.
+
+## Git / GitHub
+
+This is a fork: `origin` is `TheWillyM4AK/p3-autoroute` (where PRs go), and
+there is an `upstream` remote pointing at the parent `marco-zanella/p3-autoroute`.
+Because of `upstream`, `gh` resolves the **parent** repo by default, so PR/issue
+commands silently target the wrong repo (the symptom is `gh pr create` failing
+with "No commits between main and …"). **Always pass `--repo
+TheWillyM4AK/p3-autoroute` to every `gh` command** (`gh pr create`, `gh pr view`,
+`gh issue …`, etc.) so it acts on the fork.
