@@ -156,6 +156,70 @@ def test_good_icons_exist_on_disk():
             assert rel == "", f"weapon {goods.NAMES[gid]} should have no icon"
 
 
+def _fresh_data_dir():
+    """Point persisted user data at a throwaway dir (keeps tests off ~/.p3autoroute)."""
+    os.environ["P3AUTOROUTE_DATA"] = tempfile.mkdtemp()
+
+
+def test_pricings_export_import_roundtrip():
+    _fresh_data_dir()
+    api = Api()  # web mode (no window) -> export returns the JSON text
+    api.pricings_save({"pricing": {"id": "mine", "buying": [7] * 24, "selling": [9] * 24}})
+    exp = api.pricings_export({"ids": ["mine"]})
+    assert exp["ok"] and exp["count"] == 1 and "data" in exp
+
+    _fresh_data_dir()  # simulate a different machine / fresh install
+    api2 = Api()
+    res = api2.pricings_import({"data": exp["data"]})
+    assert res["ok"] and res["imported"] == ["mine"] and res["skipped"] == []
+    got = next(p for p in api2.pricings({}) if p["id"] == "mine")
+    assert got["buying"] == [7] * 24 and got["selling"] == [9] * 24
+    # Re-importing the same file is a no-op: skipped, never duplicated.
+    again = api2.pricings_import({"data": exp["data"]})
+    assert again["imported"] == [] and again["skipped"] == ["mine"]
+
+
+def test_sortings_export_import_and_kind_guard():
+    _fresh_data_dir()
+    api = Api()
+    rev = list(range(goods.COUNT))[::-1]
+    api.sortings_save({"sorting": {"id": "rev", "goods": rev}})
+    exp = api.sortings_export({"ids": ["rev"]})
+
+    _fresh_data_dir()
+    api2 = Api()
+    res = api2.sortings_import({"data": exp["data"]})
+    assert res["ok"] and res["imported"] == ["rev"]
+    assert next(s for s in api2.sortings({}) if s["id"] == "rev")["goods"] == rev
+    # A pricings file must not import into the sortings store.
+    bad = api2.sortings_import({"data": json.dumps({"kind": "pricings", "items": []})})
+    assert not bad["ok"] and "pricings" in bad["error"]
+
+
+def test_import_conflict_renames_never_overwrites():
+    _fresh_data_dir()
+    api = Api()
+    api.pricings_save({"pricing": {"id": "x", "buying": [1] * 24, "selling": [1] * 24}})
+    payload = json.dumps({"kind": "pricings",
+                          "items": [{"id": "x", "buying": [2] * 24, "selling": [2] * 24}]})
+    res = api.pricings_import({"data": payload})
+    assert res["imported"] == ["x (2)"]  # the clashing import is renamed
+    x = next(p for p in api.pricings({}) if p["id"] == "x")
+    assert x["buying"] == [1] * 24  # original left untouched
+
+
+def test_import_repairs_invalid_sorting_order():
+    _fresh_data_dir()
+    api = Api()
+    # Out-of-range (99) dropped, duplicate (3) dropped, missing ids appended.
+    payload = json.dumps({"kind": "sortings",
+                          "items": [{"id": "part", "goods": [5, 3, 99, 3]}]})
+    res = api.sortings_import({"data": payload})
+    assert res["ok"]
+    order = next(s for s in api.sortings({}) if s["id"] == "part")["goods"]
+    assert sorted(order) == list(range(goods.COUNT)) and order[:2] == [5, 3]
+
+
 def _run():
     tests = [v for k, v in sorted(globals().items())
              if k.startswith("test_") and callable(v)]
