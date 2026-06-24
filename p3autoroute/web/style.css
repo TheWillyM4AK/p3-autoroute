@@ -268,21 +268,37 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
   display: flex; align-items: center; gap: 6px; text-align: left;
   padding: 5px 8px; font-size: 13px;
 }
+/* Toggle states: .selected = will trade (✓), .traded = was trading at open,
+   .removing = was trading but switched off (✕, struck through). */
 .trade-modal .good-chip.selected {
   background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
 }
+.trade-modal .good-chip.traded { border-color: var(--accent); }
+.trade-modal .good-chip.removing { opacity: .65; }
+.trade-modal .good-chip.removing .chip-name { text-decoration: line-through; }
+.trade-modal .good-chip .chip-name { flex: 1; }
+.trade-modal .good-chip .chip-mark { margin-left: auto; font-weight: 700; }
+.trade-modal .good-chip .chip-mark:empty { display: none; }
+.trade-modal .good-chip.selected .chip-mark { color: var(--accent-ink); }
+.trade-modal .good-chip.removing .chip-mark { color: var(--danger); }
 .trade-modal .good-chip .good-icon { margin-right: 0; }
+.trade-modal .trade-bulk { display: flex; gap: 6px; margin: 0 0 6px; }
+.trade-modal .trade-bulk button { font-size: 12px; padding: 2px 8px; }
+.trade-summary { font-size: 13px; margin: 4px 0 8px; }
+.trade-summary .ts-add { color: var(--buy); font-weight: 600; }
+.trade-summary .ts-rm { color: var(--sell); font-weight: 600; }
+.trade-table tr.tp-removed .tp-good { opacity: .7; text-decoration: line-through; }
+.trade-table .tp-good { font-weight: 600; }
+.trade-table .tp-good .good-icon { vertical-align: middle; margin-right: 6px; }
+.trade-table .tp-buy-c { color: var(--buy); font-weight: 600; }
+.trade-table .tp-sell-c { color: var(--sell); font-weight: 600; }
+.trade-table .tp-rm { color: var(--sell); font-weight: 600; }
 .trade-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .trade-table th, .trade-table td {
   padding: 4px 8px; border-bottom: 1px solid var(--row-alt); text-align: left;
 }
 .trade-table th { color: var(--muted); font-weight: 600; }
-.trade-table .tp-num { color: var(--muted); font-variant-numeric: tabular-nums; }
-.trade-table .tp-town { font-weight: 600; }
-.trade-table .tp-price { text-align: right; font-variant-numeric: tabular-nums; }
-.trade-table tr.tp-buy .tp-act { color: var(--buy); font-weight: 600; }
-.trade-table tr.tp-sell .tp-act { color: var(--sell); font-weight: 600; }
-.trade-table tr.tp-none { color: var(--muted); }
+.trade-table .tp-none { color: var(--muted); }
 
 /* Prices modal ---------------------------------------------------------- */
 #prices-btn { margin-left: 4px; }

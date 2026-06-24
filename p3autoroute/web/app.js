@@ -355,7 +355,13 @@ function renderStops() {
   strip.replaceChildren();
   state.route.stops.forEach((stop, i) => {
     const townSel = h("select", {
-      onchange: (e) => { stop.town = parseInt(e.target.value, 10); },
+      onchange: (e) => {
+        stop.town = parseInt(e.target.value, 10);
+        // Re-adjust the route's traded goods (Buy/Sell/price) to the new town so
+        // a stop always trades the route set as fits where it now docks.
+        const traded = routeTradedGoods();
+        if (traded.size) { applyRouteTradeToStop(stop, traded); renderEditor(); }
+      },
     }, META.towns.names.map((n, idx) => h("option", { value: idx, selected: idx === stop.town }, n)));
     const modeSel = h("select", {
       class: "mode-" + STOP_MODES[stop.mode].toUpperCase(),
@@ -409,9 +415,17 @@ function copyPrevStop(i) {
 
 function addStop() {
   if (state.route.stops.length >= META.maxStops) { setStatus("Maximum number of stops reached"); return; }
-  state.route.stops.push(newStop(0));
+  const stop = newStop(0);
+  // Carry over the goods already being traded in this route so a new stop need
+  // not be reconfigured from scratch — they re-adjust when its town is picked.
+  const traded = routeTradedGoods();
+  applyRouteTradeToStop(stop, traded);
+  state.route.stops.push(stop);
   state.selectedStop = state.route.stops.length - 1;
   renderEditor();
+  if (traded.size) {
+    setStatus(`New stop added with the route's ${traded.size} traded good(s) — set its town to adjust Buy/Sell`);
+  }
 }
 
 // Visual feedback for the Save button: a spinner while writing, then a green
@@ -615,104 +629,225 @@ function tradeActionFor(town, good) {
   return null; // weapons / non-consumable goods have no town demand
 }
 
+// The route's "trade set": every good currently traded (Buy/Sell) in any dock
+// stop, mapped to a representative quantity (the first one found). These are the
+// goods the user has chosen via "Trade a good"; new stops inherit them.
+function routeTradedGoods() {
+  const m = new Map();
+  if (!state.route) return m;
+  state.route.stops.forEach((s) => {
+    if (s.mode !== 0) return; // only dockable stops trade
+    s.rules.forEach((r) => {
+      if ((r.mode === 1 || r.mode === 2) && !m.has(r.good)) m.set(r.good, r.quantity);
+    });
+  });
+  return m;
+}
+
+// Apply the route's trade set to a single stop, adjusting each good to *this*
+// stop's town: produced → Buy, consumed → Sell, neither → cleared. Prices follow
+// the default pricing; a good that was already trading keeps its own quantity,
+// otherwise it takes the route's representative quantity. Returns how many goods
+// ended up trading. Lets a freshly added stop carry the route's goods without
+// re-running "Trade a good", and re-syncs them when its town changes.
+function applyRouteTradeToStop(stop, traded) {
+  if (!stop || stop.mode !== 0) return 0; // skips/repairs don't trade
+  traded = traded || routeTradedGoods();
+  let n = 0;
+  traded.forEach((qty, good) => {
+    const rule = stop.rules.find((r) => r.good === good);
+    if (!rule) return;
+    const act = tradeActionFor(stop.town, good);
+    if (!act) {
+      // This town neither produces nor consumes it: drop any stale Buy/Sell left
+      // over from a previous town so the stop stays consistent.
+      if (rule.mode === 1 || rule.mode === 2) { rule.mode = 0; rule.price = 0; rule.quantity = 0; }
+      return;
+    }
+    const wasTrading = rule.mode === 1 || rule.mode === 2;
+    rule.mode = act === "buy" ? 1 : 2;
+    const ap = autoPriceFor(good, rule.mode);
+    if (ap != null) rule.price = ap;
+    if (!wasTrading) rule.quantity = qty;
+    n++;
+  });
+  return n;
+}
+
+// The modal edits the route's *trade set* declaratively: each good is a toggle,
+// the ones already trading start on. One "Apply" then reconciles every dock stop
+// to the chosen set — turning each selected good into Buy/Sell per the town's
+// production (default price) and clearing goods that were switched off.
 function openTradeGood() {
   if (!state.route) { setStatus("Open a route first."); return; }
   // Only dockable stops trade; skips/repairs are left alone.
   const dockStops = state.route.stops
     .map((s, i) => ({ s, i }))
     .filter((x) => x.s.mode === 0);
-  const dp = defaultPricing();
-  let selectedGood = null;
-  const include = {}; // stop index -> included? (defaults to true when actionable)
+
+  // Goods trading at open (the starting set) and the live target set the user
+  // edits via the chips. ``selected`` starts as a copy of what's already traded.
+  const initiallyTraded = new Set(routeTradedGoods().keys());
+  const selected = new Set(initiallyTraded);
+  const chipByGood = new Map();
 
   const preview = h("div", { class: "trade-preview" });
   const qtyInp = h("input", { type: "number", min: -1, max: 9999, value: -1, title: "-1 = maximum" });
-  const applyBtn = h("button", { class: "primary", disabled: true }, "Apply to route");
+  const applyBtn = h("button", { class: "primary" }, "Apply to route");
+
+  // For one good, how many dock stops would Buy vs Sell it given their towns.
+  function stopCounts(good) {
+    let buy = 0, sell = 0;
+    dockStops.forEach(({ s }) => {
+      const a = tradeActionFor(s.town, good);
+      if (a === "buy") buy++; else if (a === "sell") sell++;
+    });
+    return { buy, sell };
+  }
+
+  function paintChip(g) {
+    const chip = chipByGood.get(g);
+    if (!chip) return;
+    const sel = selected.has(g);
+    const was = initiallyTraded.has(g);
+    chip.classList.toggle("selected", sel);
+    chip.classList.toggle("traded", was);
+    chip.classList.toggle("removing", was && !sel);
+    chip.title = sel
+      ? (was ? "Trading in this route" : "Will start trading")
+      : (was ? "Will be removed from the route" : "");
+    chip.querySelector(".chip-mark").textContent = sel ? "✓" : (was ? "✕" : "");
+  }
 
   function renderPreview() {
     preview.replaceChildren();
-    if (selectedGood == null) {
-      preview.append(h("p", { class: "hint" }, "Pick a good above to preview which stops will Buy or Sell it."));
-      applyBtn.disabled = true; return;
-    }
     if (!dockStops.length) {
       preview.append(h("p", { class: "hint" }, "This route has no dockable stops to mark yet."));
       applyBtn.disabled = true; return;
     }
+    const added = [...selected].filter((g) => !initiallyTraded.has(g));
+    const removed = [...initiallyTraded].filter((g) => !selected.has(g));
+    if (!selected.size && !removed.length) {
+      preview.append(h("p", { class: "hint" },
+        "Toggle goods above. Each one you turn on trades across the route (Buy where "
+        + "produced, Sell where consumed); turning an already-traded one off removes it."));
+      applyBtn.disabled = true; return;
+    }
+    preview.append(h("p", { class: "trade-summary" },
+      `On apply: ${selected.size} good(s) traded `,
+      h("span", { class: "ts-add" }, `+${added.length} added`), ", ",
+      h("span", { class: "ts-rm" }, `−${removed.length} removed`), "."));
+
     const rows = [];
-    let anyAction = false;
-    dockStops.forEach(({ s, i }) => {
-      const act = tradeActionFor(s.town, selectedGood);
-      const price = act === "buy" ? dp.buying[selectedGood]
-        : act === "sell" ? dp.selling[selectedGood] : null;
-      const cb = h("input", { type: "checkbox" });
-      if (act) {
-        anyAction = true;
-        if (include[i] === undefined) include[i] = true;
-        cb.checked = include[i];
-        cb.addEventListener("change", () => { include[i] = cb.checked; });
-      } else {
-        cb.disabled = true;
-      }
-      rows.push(h("tr", { class: "tp-" + (act || "none") },
-        h("td", null, act ? cb : ""),
-        h("td", { class: "tp-num" }, "#" + (i + 1)),
-        h("td", { class: "tp-town" }, META.towns.names[s.town]),
-        h("td", { class: "tp-act" }, act === "buy" ? "Buy" : act === "sell" ? "Sell" : "—"),
-        h("td", { class: "tp-price" }, price == null ? "" : String(price))));
+    [...selected].sort((a, b) => a - b).forEach((g) => {
+      const { buy, sell } = stopCounts(g);
+      const parts = [];
+      if (buy) parts.push(h("span", { class: "tp-buy-c" }, `Buy ×${buy}`));
+      if (sell) parts.push(h("span", { class: "tp-sell-c" }, `Sell ×${sell}`));
+      rows.push(h("tr", { class: initiallyTraded.has(g) ? "" : "tp-added" },
+        h("td", { class: "tp-good" }, goodIcon(g), h("span", null, META.goods.names[g])),
+        h("td", { class: "tp-act" },
+          parts.length ? parts.flatMap((p, idx) => idx ? [", ", p] : [p])
+            : h("span", { class: "tp-none" }, "— no town on this route trades it"))));
+    });
+    removed.sort((a, b) => a - b).forEach((g) => {
+      let n = 0;
+      dockStops.forEach(({ s }) => {
+        const r = s.rules.find((x) => x.good === g);
+        if (r && (r.mode === 1 || r.mode === 2)) n++;
+      });
+      rows.push(h("tr", { class: "tp-removed" },
+        h("td", { class: "tp-good" }, goodIcon(g), h("span", null, META.goods.names[g])),
+        h("td", { class: "tp-act" }, h("span", { class: "tp-rm" }, `Remove from ${n} stop(s)`))));
     });
     preview.append(h("table", { class: "trade-table" },
-      h("thead", null, h("tr", null,
-        h("th", null, ""), h("th", null, "#"), h("th", null, "Town"),
-        h("th", null, "Action"), h("th", null, "Price"))),
+      h("thead", null, h("tr", null, h("th", null, "Good"), h("th", null, "What happens"))),
       h("tbody", null, rows)));
-    applyBtn.disabled = !anyAction;
+    applyBtn.disabled = false;
   }
 
   const picker = h("div", { class: "good-picker" });
   for (let g = 0; g < META.goods.count; g++) {
     if (!META.goods.visibility[g] && !state.showWeapons) continue;
     const chip = h("button", { class: "good-chip", type: "button" },
-      goodIcon(g), h("span", null, META.goods.names[g]));
+      goodIcon(g), h("span", { class: "chip-name" }, META.goods.names[g]),
+      h("span", { class: "chip-mark" }, ""));
     chip.addEventListener("click", () => {
-      selectedGood = g;
-      for (const k in include) delete include[k];
-      picker.querySelectorAll(".good-chip").forEach((c) => c.classList.remove("selected"));
-      chip.classList.add("selected");
+      if (selected.has(g)) selected.delete(g); else selected.add(g);
+      paintChip(g);
       renderPreview();
     });
+    chipByGood.set(g, chip);
     picker.append(chip);
+    paintChip(g);
   }
+
+  // Bulk helpers for working with many goods at once.
+  const selectAllBtn = h("button", { type: "button" }, "Select all");
+  selectAllBtn.addEventListener("click", () => {
+    chipByGood.forEach((_c, g) => selected.add(g));
+    chipByGood.forEach((_c, g) => paintChip(g));
+    renderPreview();
+  });
+  const clearBtn = h("button", { type: "button" }, "Clear");
+  clearBtn.addEventListener("click", () => {
+    selected.clear();
+    chipByGood.forEach((_c, g) => paintChip(g));
+    renderPreview();
+  });
 
   const node = h("div", { class: "modal trade-modal" },
     h("h2", null, "📦 Start trading a good"),
     h("p", { class: "hint" },
-      "Producing towns are set to Buy, the rest (that consume it) to Sell — each "
-      + "at its default price. Only this route's existing stops are changed."),
+      "Toggle the goods this route should trade. Each one on is set to Buy where "
+      + "its town produces it and Sell where consumed, at its default price. ✓ = will "
+      + "trade, ✕ = will be removed. Apply reconciles every stop in one go."),
+    h("div", { class: "trade-bulk" }, selectAllBtn, clearBtn),
     picker,
     h("div", { class: "dialog-row" },
-      h("label", null, "Quantity:"), qtyInp, h("small", { class: "hint" }, "-1 = maximum")),
+      h("label", null, "Quantity:"), qtyInp,
+      h("small", { class: "hint" }, "-1 = maximum · used for goods you add")),
     preview,
     h("div", { class: "modal-actions" },
       h("button", { onclick: () => close() }, "Cancel"), applyBtn));
   const close = modal(node);
 
   applyBtn.addEventListener("click", () => {
-    if (selectedGood == null) return;
     const q = parseInt(qtyInp.value || "-1", 10);
-    let changed = 0;
+    const changedStops = new Set();
     dockStops.forEach(({ s, i }) => {
-      const act = tradeActionFor(s.town, selectedGood);
-      if (!act || include[i] === false) return;
-      const rule = s.rules.find((r) => r.good === selectedGood);
-      if (!rule) return;
-      rule.mode = act === "buy" ? 1 : 2;
-      rule.price = act === "buy" ? dp.buying[selectedGood] : dp.selling[selectedGood];
-      rule.quantity = q;
-      changed++;
+      // Selected goods → Buy/Sell per this town (clearing where the town trades
+      // neither). New goods take the chosen quantity; kept ones keep their own.
+      selected.forEach((g) => {
+        const rule = s.rules.find((r) => r.good === g);
+        if (!rule) return;
+        const act = tradeActionFor(s.town, g);
+        if (!act) {
+          if (rule.mode === 1 || rule.mode === 2) {
+            rule.mode = 0; rule.price = 0; rule.quantity = 0; changedStops.add(i);
+          }
+          return;
+        }
+        const wasTrading = rule.mode === 1 || rule.mode === 2;
+        rule.mode = act === "buy" ? 1 : 2;
+        const ap = autoPriceFor(g, rule.mode);
+        if (ap != null) rule.price = ap;
+        if (!wasTrading) rule.quantity = q;
+        changedStops.add(i);
+      });
+      // Goods switched off that were trading → cleared everywhere.
+      initiallyTraded.forEach((g) => {
+        if (selected.has(g)) return;
+        const rule = s.rules.find((r) => r.good === g);
+        if (rule && (rule.mode === 1 || rule.mode === 2)) {
+          rule.mode = 0; rule.price = 0; rule.quantity = 0; changedStops.add(i);
+        }
+      });
     });
+    const added = [...selected].filter((g) => !initiallyTraded.has(g)).length;
+    const removed = [...initiallyTraded].filter((g) => !selected.has(g)).length;
     close();
-    setStatus(`Marked "${META.goods.names[selectedGood]}" in ${changed} stop(s) — remember to Save`);
+    setStatus(`Trade set updated (+${added}, −${removed}) across ${changedStops.size} stop(s) — remember to Save`);
     renderEditor();
   });
 
