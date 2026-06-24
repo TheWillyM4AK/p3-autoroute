@@ -153,8 +153,10 @@ def sell_price(stock, amount, thresholds, base_price, difficulty=DIFFICULTY_NORM
 # never change with the game state. They all sit in difficulty-independent parts
 # of the curve (intervals 1–2, not the empty-town interval 0).
 BASE_FACTOR = 1.0       # 3 weeks of supply — buy & sell meet here (the neutral price)
+BUY_2_5WK_FACTOR = 1.125  # buy down to 2.5 weeks — midway between the 3-week pivot and 2-week cap
 BUY_2WK_FACTOR = 1.25   # buy down to 2 weeks (the source's satisfaction floor; aggressive)
 SELL_2WK_FACTOR = 1.2   # sell up to the 2-week satisfaction cap (the default)
+SELL_1_5WK_FACTOR = 1.3  # sell up to 1.5 weeks — midway between the 2-week and 1-week points
 SELL_1WK_FACTOR = 1.4   # sell only up to 1 week (premium / cream-skim)
 
 # The 5 "building materials" — Timber, Iron Goods, Pitch, Hemp, Bricks (good ids
@@ -177,10 +179,12 @@ def universal_table(difficulty=DIFFICULTY_NORMAL):
 
     - ``floor`` (0.6×): the cheapest you'll ever pay — a deep-glut town.
     - ``buy3wk`` (1.0×): buying at the 3-week pivot ≈ base.
+    - ``buy2_5wk`` (1.125×): buying down to 2.5 weeks (between the pivot and the cap).
     - ``buy2wk`` (1.25×): aggressive buy cap — drains a town to 2 weeks (below
       that you penalise its satisfaction).
     - ``base`` (1.0×): the 3-week pivot where buy = sell = base.
     - ``sell2wk`` (1.2×): sell down to the 2-week satisfaction cap (the default).
+    - ``sell1_5wk`` (1.3×): selling down to 1.5 weeks (between the cap and premium).
     - ``sell1wk`` (1.4×): premium sell — only down to 1 week.
     - ``ceiling`` (2.0× at normal, 2.2/1.8 at easy/hard): the dearest you'll get —
       an empty town; only this column varies with ``difficulty``.
@@ -203,9 +207,11 @@ def universal_table(difficulty=DIFFICULTY_NORMAL):
             "approx": g in BUILDING_MATERIALS,
             "floor": round(per * BUY_FLOOR),
             "buy3wk": round(per * BASE_FACTOR),
+            "buy2_5wk": round(per * BUY_2_5WK_FACTOR),
             "buy2wk": round(per * BUY_2WK_FACTOR),
             "base": round(per * BASE_FACTOR),
             "sell2wk": round(per * SELL_2WK_FACTOR),
+            "sell1_5wk": round(per * SELL_1_5WK_FACTOR),
             "sell1wk": round(per * SELL_1WK_FACTOR),
             "ceiling": round(per * SELL_DIFFICULTY[difficulty]),
         })

@@ -735,8 +735,9 @@ function priceError(data) {
 }
 
 // Per-good reference prices, cheapest → dearest. Floor / Base / Ceiling are the
-// constant neutral anchors of the scale (single theoretical value). The four
-// "per-N-weeks" columns carry a DUAL value — theoretical (faint, top) over the
+// constant neutral anchors of the scale (single theoretical value). The six
+// "per-N-weeks" columns (Buy 3/2.5/2wk, Sell 2/1.5/1wk) carry a DUAL value —
+// theoretical (faint, top) over the
 // live median from the running game (bold, coloured) — because that is where
 // the additive threshold bonus makes theory and reality diverge. ``liveMap`` maps
 // good id → its live row, or is null when the game isn't readable (live → "—").
@@ -755,9 +756,11 @@ function buildUniversalTable(data, liveMap) {
         : goodLabel(g.good)),
       h("td", { class: "pr-floor" }, String(g.floor)),
       dual(g.buy3wk, lv && lv.buy3wk, "buy"),
+      dual(g.buy2_5wk, lv && lv.buy2_5wk, "buy"),
       dual(g.buy2wk, lv && lv.buy2wk, "buy"),
       h("td", { class: "pr-base" }, String(g.base)),
       dual(g.sell2wk, lv && lv.sell2wk, "sell"),
+      dual(g.sell1_5wk, lv && lv.sell1_5wk, "sell"),
       dual(g.sell1wk, lv && lv.sell1wk, "sell"),
       h("td", { class: "pr-ceiling" }, String(g.ceiling)));
   });
@@ -768,9 +771,11 @@ function buildUniversalTable(data, liveMap) {
       h("th", null, "Good"),
       h("th", { title: "Cheapest you'll ever pay — a deep-glut town (0.6× base)" }, "Floor"),
       h("th", { title: dualTitle("Compra al pivote de 3 semanas (teórico ≈ base).") }, "Buy 3wk"),
+      h("th", { title: dualTitle("Compra drenando a 2,5 semanas (teórico 1,125× base, entre el pivote y la compra agresiva).") }, "Buy 2.5wk"),
       h("th", { title: dualTitle("Compra agresiva drenando a 2 semanas (teórico 1,25× base).") }, "Buy 2wk"),
       h("th", { title: "Pivote neutral (1.0×): a 3 semanas compra = venta = base" }, "Base"),
       h("th", { title: dualTitle("Venta hasta 2 semanas, lo habitual (teórico 1,2× base).") }, "Sell 2wk"),
+      h("th", { title: dualTitle("Venta hasta 1,5 semanas (teórico 1,3× base, entre lo habitual y el premium).") }, "Sell 1.5wk"),
       h("th", { title: dualTitle("Venta premium hasta 1 semana (teórico 1,4× base).") }, "Sell 1wk"),
       h("th", { title: "Dearest you'll ever get — an empty town (2× base, ajustado a la dificultad)" }, "Ceiling"))),
     h("tbody", null, trs));
@@ -849,7 +854,7 @@ function openPrices() {
     const liveMap = (live && live.ok)
       ? Object.fromEntries(live.goods.map((g) => [g.good, g])) : null;
     note.textContent = "Oro por carga (barril/bulto), de barato a caro. Floor · Base · Ceiling son los "
-      + "anclajes fijos de la escala (× base). Las 4 columnas a-N-semanas llevan doble valor: arriba el "
+      + "anclajes fijos de la escala (× base). Las 6 columnas a-N-semanas llevan doble valor: arriba el "
       + "teórico, abajo el real de tu partida "
       + (liveMap ? "(mediana de las ciudades en vivo)." : "(abre el juego para ver el valor en vivo).")
       + " * = material de construcción: ahí teoría y realidad divergen.";

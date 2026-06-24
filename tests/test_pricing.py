@@ -99,9 +99,13 @@ def test_universal_table():
     per = 0.17399999 * goods.SIZES[goods.Good.BEER]
     assert beer["floor"] == round(per * 0.6)      # deep-glut floor (cheapest)
     assert beer["buy3wk"] == round(per)           # buying at the 3-week pivot ≈ base
+    assert beer["buy2_5wk"] == round(per * 1.125)  # 2.5-week buy (between pivot and cap)
+    assert beer["buy3wk"] <= beer["buy2_5wk"] <= beer["buy2wk"]
     assert beer["buy2wk"] == round(per * 1.25)    # aggressive buy cap (2-week drain)
     assert beer["base"] == round(per)             # 3-week pivot: buy = sell = base
     assert beer["sell2wk"] == round(per * 1.2)    # 2-week satisfaction sell
+    assert beer["sell1_5wk"] == round(per * 1.3)  # 1.5-week sell (between cap and premium)
+    assert beer["sell2wk"] <= beer["sell1_5wk"] <= beer["sell1wk"]
     assert beer["sell1wk"] == round(per * 1.4)    # 1-week premium sell
     assert beer["ceiling"] == round(per * 2.0)    # empty-town ceiling (dearest, normal)
     # the columns are ordered cheapest -> dearest (buy3wk == base, the pivot)

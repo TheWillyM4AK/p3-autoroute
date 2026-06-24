@@ -206,7 +206,7 @@ def read(params=None) -> dict:
         quotes: dict[int, list] = {g: [] for g in TRADE_GOODS}
         # good id -> {key: [per-town price at a reference weeks-of-supply]}; the
         # universal table's live columns are the median of these across towns.
-        ref: dict[int, dict] = {g: {"sell1": [], "sell2": [], "buy2": [], "buy3": []} for g in TRADE_GOODS}
+        ref: dict[int, dict] = {g: {"sell1": [], "sell1_5": [], "sell2": [], "buy2": [], "buy2_5": [], "buy3": []} for g in TRADE_GOODS}
         for t in range(town_count):
             base = towns_ptr + TOWN_STRIDE * t
             try:
@@ -245,13 +245,17 @@ def read(params=None) -> dict:
                 # town's real thresholds (robust: no extrapolation from observed
                 # stock, so towns far from the target week still contribute).
                 if weekly > 0:
-                    s2, s3 = round(2 * weekly), round(3 * weekly)
+                    s2, s25, s3 = round(2 * weekly), round(2.5 * weekly), round(3 * weekly)
                     ref[g]["sell1"].append(
                         pricing.unit_sell_price(round(weekly), t4, base_price, size, difficulty))
+                    ref[g]["sell1_5"].append(
+                        pricing.unit_sell_price(round(1.5 * weekly), t4, base_price, size, difficulty))
                     ref[g]["sell2"].append(
                         pricing.unit_sell_price(s2, t4, base_price, size, difficulty))
                     if s2 >= size:
                         ref[g]["buy2"].append(pricing.unit_buy_price(s2, t4, base_price, size))
+                    if s25 >= size:
+                        ref[g]["buy2_5"].append(pricing.unit_buy_price(s25, t4, base_price, size))
                     if s3 >= size:
                         ref[g]["buy3"].append(pricing.unit_buy_price(s3, t4, base_price, size))
                 quotes[g].append({
@@ -280,8 +284,10 @@ def read(params=None) -> dict:
                 # town gives a usable figure (e.g. a good held in huge bulk like
                 # bricks never sits near 2–3 weeks).
                 "sell1wk": _median(ref[g]["sell1"]),
+                "sell1_5wk": _median(ref[g]["sell1_5"]),
                 "sell2wk": _median(ref[g]["sell2"]),
                 "buy2wk": _median(ref[g]["buy2"]),
+                "buy2_5wk": _median(ref[g]["buy2_5"]),
                 "buy3wk": _median(ref[g]["buy3"]),
                 "towns": sorted(quotes[g], key=lambda q: q["townIndex"]),
             })
