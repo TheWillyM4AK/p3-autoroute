@@ -98,13 +98,26 @@ def test_universal_table():
     beer = next(x for x in t["goods"] if x["name"] == "Beer")
     per = 0.17399999 * goods.SIZES[goods.Good.BEER]
     assert beer["floor"] == round(per * 0.6)      # deep-glut floor (cheapest)
+    assert beer["buy3wk"] == round(per)           # buying at the 3-week pivot ≈ base
+    assert beer["buy2_5wk"] == round(per * 1.125)  # 2.5-week buy (between pivot and cap)
+    assert beer["buy3wk"] <= beer["buy2_5wk"] <= beer["buy2wk"]
+    assert beer["buy2wk"] == round(per * 1.25)    # aggressive buy cap (2-week drain)
     assert beer["base"] == round(per)             # 3-week pivot: buy = sell = base
     assert beer["sell2wk"] == round(per * 1.2)    # 2-week satisfaction sell
-    assert beer["buy2wk"] == round(per * 1.25)    # aggressive buy cap (2-week drain)
+    assert beer["sell1_5wk"] == round(per * 1.3)  # 1.5-week sell (between cap and premium)
+    assert beer["sell2wk"] <= beer["sell1_5wk"] <= beer["sell1wk"]
     assert beer["sell1wk"] == round(per * 1.4)    # 1-week premium sell
     assert beer["ceiling"] == round(per * 2.0)    # empty-town ceiling (dearest, normal)
-    # the columns are ordered cheapest -> dearest
+    # the columns are ordered cheapest -> dearest (buy3wk == base, the pivot)
     assert beer["floor"] < beer["base"] < beer["sell2wk"] < beer["buy2wk"] < beer["sell1wk"] < beer["ceiling"]
+    # only the ceiling varies with difficulty (easy 2.2x / hard 1.8x)
+    easy = next(x for x in pricing.universal_table(0)["goods"] if x["name"] == "Beer")
+    assert easy["ceiling"] == round(per * 2.2) and easy["floor"] == beer["floor"]
+    # the 5 building materials are flagged approximate (additive threshold bonus);
+    # everything else is exact.
+    approx = {x["name"] for x in t["goods"] if x.get("approx")}
+    assert approx == {"Timber", "Iron Goods", "Pitch", "Hemp", "Bricks"}, approx
+    assert beer["approx"] is False
 
 
 def _run():

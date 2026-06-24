@@ -51,11 +51,20 @@ class Api:
         """Persisted app settings (e.g. last opened folder)."""
         return settings.load()
 
+    def settings_set(self, params: dict) -> dict:
+        """Persist allowlisted UI preferences (e.g. the live-price difficulty)."""
+        allowed = {"difficulty"}
+        for key, value in (params or {}).items():
+            if key in allowed:
+                settings.set(key, value)
+        return {"ok": True}
+
     # --------------------------------------------------------------- prices
     def prices_table(self, params=None) -> dict:
         """Recommended buy/sell price thresholds per good (route-rule reference)."""
         from . import pricing
-        return pricing.universal_table()
+        params = params or {}
+        return pricing.universal_table(int(params.get("difficulty", pricing.DIFFICULTY_NORMAL)))
 
     def prices_live(self, params=None) -> dict:
         """Live buy/sell prices per good/town (reads the running game's RAM)."""
@@ -191,7 +200,7 @@ class Api:
 
 # Methods exposed by name (for the web server dispatch).
 PUBLIC_METHODS = [
-    "meta", "settings", "prices_table", "prices_live", "pick_folder", "folder_open",
+    "meta", "settings", "settings_set", "prices_table", "prices_live", "pick_folder", "folder_open",
     "route_load", "route_save", "route_create", "route_delete",
     "route_rename", "route_duplicate",
     "stop_new", "stop_apply_pricing", "stop_apply_sorting", "generate",
