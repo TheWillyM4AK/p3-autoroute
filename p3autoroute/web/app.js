@@ -1207,7 +1207,11 @@ function renderSortingsTab() {
         s.id, " ", s.is_default ? h("span", { class: "badge" }, "def") : ""),
       h("button", { class: "icon", title: "Set default", onclick: () => setDefaultSorting(s.id) }, "★"),
       h("button", { class: "icon", title: "Rename", onclick: () => renameSorting(s.id) }, "✎"),
-      h("button", { class: "icon danger", title: "Delete", onclick: () => deleteSorting(s.id) }, "🗑")))));
+      h("button", { class: "icon danger", title: "Delete", onclick: () => deleteSorting(s.id) }, "🗑")))),
+    h("div", { class: "preset-io" },
+      h("button", { title: "Import sortings from a .json file", onclick: importSortingsFile }, "Import…"),
+      h("button", { title: "Export every sorting to a .json file",
+        onclick: () => exportPresets("sortings", null, "sortings.json") }, "Export all")));
 
   let editor;
   if (preset) {
@@ -1226,6 +1230,8 @@ function renderSortingsTab() {
     editor = h("div", { class: "preset-editor" },
       h("div", { class: "editor-head" }, h("strong", null, "Edit: " + preset.id),
         h("div", { class: "spacer" }),
+        h("button", { title: "Export this sorting to a .json file",
+          onclick: () => exportPresets("sortings", [preset.id], `sorting-${safeFilename(preset.id)}.json`) }, "Export"),
         h("button", { class: "primary", onclick: () => saveSorting(preset) }, "Save")),
       h("p", { class: "hint" }, "Drag to change the order of goods."),
       ul);
@@ -1258,6 +1264,70 @@ async function deleteSorting(id) {
   if (selectedSorting === id) selectedSorting = null;
   await reloadSortings(); renderSortingsTab();
 }
+async function importSortingsFile() {
+  const r = await importPresets("sortings");
+  if (!r) return;
+  await reloadSortings();
+  if (r.imported.length) selectedSorting = r.imported[r.imported.length - 1];
+  renderSortingsTab();
+}
+
+// --------------------------------------------------------------------------
+// Preset import / export (shared by the pricings and sortings tabs)
+// --------------------------------------------------------------------------
+// Filesystem-safe filename from a free-text preset id.
+function safeFilename(s) { return String(s).replace(/[^\w.-]+/g, "_") || "preset"; }
+
+// Web-mode fallback: hand the browser a file to save (desktop uses a native
+// Save dialog in the backend instead).
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = h("a", { href: url, download: filename });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Open the OS file picker and resolve with the chosen file's text (or null if
+// the dialog is dismissed without a selection). Works in both desktop and web.
+function pickTextFile(accept = ".json,application/json") {
+  return new Promise((resolve) => {
+    const input = h("input", { type: "file", accept, style: "display:none" });
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0];
+      if (!file) { input.remove(); return resolve(null); }
+      const reader = new FileReader();
+      reader.onload = () => { input.remove(); resolve(String(reader.result)); };
+      reader.onerror = () => { input.remove(); resolve(null); };
+      reader.readAsText(file);
+    });
+    document.body.append(input);
+    input.click();
+  });
+}
+
+// kind: "pricings" | "sortings". ids: array to export a subset, or null for all.
+async function exportPresets(kind, ids, filename) {
+  const r = await api(`/api/${kind}/export`, { ids: ids || null, filename });
+  if (!r || !r.ok) {
+    if (r && r.error && r.error !== "cancelled") setStatus("Export failed: " + r.error);
+    return;
+  }
+  if (r.data != null) downloadText(r.filename || filename, r.data); // web mode
+  setStatus(r.path ? `Exported ${r.count} → ${r.path}` : `Exported ${r.count} ${kind}`);
+}
+
+// Reads a file via the OS picker and merges it; returns the backend result
+// (or undefined if cancelled / failed) so callers can reload and re-select.
+async function importPresets(kind) {
+  const text = await pickTextFile();
+  if (text == null) return;
+  const r = await api(`/api/${kind}/import`, { data: text });
+  if (!r || !r.ok) { setStatus("Import failed: " + ((r && r.error) || "unknown")); return; }
+  setStatus(`Imported ${r.imported.length} ${kind}` +
+    (r.skipped.length ? `, skipped ${r.skipped.length} duplicate(s)` : ""));
+  return r;
+}
 
 // --------------------------------------------------------------------------
 // Pricings tab (pricing presets)
@@ -1281,7 +1351,11 @@ function renderPricingsTab() {
         p.id, " ", p.is_default ? h("span", { class: "badge" }, "def") : ""),
       h("button", { class: "icon", title: "Set default", onclick: () => setDefaultPricing(p.id) }, "★"),
       h("button", { class: "icon", title: "Rename", onclick: () => renamePricing(p.id) }, "✎"),
-      h("button", { class: "icon danger", title: "Delete", onclick: () => deletePricing(p.id) }, "🗑")))));
+      h("button", { class: "icon danger", title: "Delete", onclick: () => deletePricing(p.id) }, "🗑")))),
+    h("div", { class: "preset-io" },
+      h("button", { title: "Import pricings from a .json file", onclick: importPricingsFile }, "Import…"),
+      h("button", { title: "Export every pricing to a .json file",
+        onclick: () => exportPresets("pricings", null, "pricings.json") }, "Export all")));
 
   let editor;
   if (preset) {
@@ -1305,6 +1379,8 @@ function renderPricingsTab() {
     editor = h("div", { class: "preset-editor" },
       h("div", { class: "editor-head" }, h("strong", null, "Edit: " + preset.id),
         h("div", { class: "spacer" }),
+        h("button", { title: "Export this pricing to a .json file",
+          onclick: () => exportPresets("pricings", [preset.id], `pricing-${safeFilename(preset.id)}.json`) }, "Export"),
         h("button", { class: "primary", onclick: () => savePricing(preset) }, "Save")),
       h("table", { class: "pricing-grid" },
         h("thead", null, h("tr", null, h("th", null, "Good"), h("th", null, "Buy"), h("th", null, "Sell"),
@@ -1339,6 +1415,13 @@ async function deletePricing(id) {
   await api("/api/pricings/delete", { id });
   if (selectedPricing === id) selectedPricing = null;
   await reloadPricings(); renderPricingsTab();
+}
+async function importPricingsFile() {
+  const r = await importPresets("pricings");
+  if (!r) return;
+  await reloadPricings();
+  if (r.imported.length) selectedPricing = r.imported[r.imported.length - 1];
+  renderPricingsTab();
 }
 
 // --------------------------------------------------------------------------

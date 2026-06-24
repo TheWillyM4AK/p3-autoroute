@@ -165,6 +165,8 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 .preset-list li { display: flex; align-items: center; gap: 4px; padding: 6px 4px; border-radius: 6px; }
 .preset-list li.selected { background: var(--row-alt); }
 .preset-list li .pname { flex: 1; cursor: pointer; }
+.preset-io { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.preset-io button { flex: 1; }
 .badge { font-size: 10px; background: var(--accent); color: var(--accent-ink); padding: 1px 5px; border-radius: 8px; }
 .preset-editor { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .sorting-good { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 1px solid var(--line);

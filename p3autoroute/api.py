@@ -8,6 +8,7 @@ Method names map 1:1 to the frontend routes:
 """
 from __future__ import annotations
 
+import json
 import os
 
 from . import generators, goods, production, settings, towns
@@ -157,6 +158,42 @@ class Api:
             stops = generators.GENERATORS[kind](params["town"], params["goods"])
         return {"ok": True, "stops": [s.to_dict() for s in stops]}
 
+    # ------------------------------------------------------- import / export
+    # Shared by the pricings and sortings endpoints (both back onto a _Store).
+    def _export_presets(self, store, params, default_name: str) -> dict:
+        """Serialize the chosen presets to JSON. In desktop mode, write them to
+        a file the user picks (native Save dialog) and return its path; in web
+        mode, return the text so the browser can download it."""
+        params = params or {}
+        payload = store.export_payload(params.get("ids"))
+        text = json.dumps(payload, indent=2)
+        filename = params.get("filename") or default_name
+        if self._window is not None:
+            import webview
+            result = self._window.create_file_dialog(
+                webview.SAVE_DIALOG, save_filename=filename,
+                file_types=("JSON file (*.json)", "All files (*.*)"))
+            if not result:
+                return {"ok": False, "error": "cancelled"}
+            path = result[0] if isinstance(result, (list, tuple)) else result
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+            return {"ok": True, "path": path, "count": len(payload["items"])}
+        return {"ok": True, "data": text, "filename": filename,
+                "count": len(payload["items"])}
+
+    def _import_presets(self, store, params) -> dict:
+        """Merge presets from the JSON `data` (file text) the frontend read."""
+        params = params or {}
+        raw = params.get("data")
+        if raw is None:
+            return {"ok": False, "error": "No file data provided"}
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "error": f"Invalid JSON: {exc}"}
+        return store.import_payload(parsed)
+
     # --------------------------------------------------------------- pricings
     def pricings(self, params=None) -> list:
         return [p.to_dict() for p in PricingStore().items]
@@ -176,6 +213,12 @@ class Api:
     def pricings_rename(self, params: dict) -> dict:
         PricingStore().rename(params["old"], params["new"])
         return {"ok": True}
+
+    def pricings_export(self, params=None) -> dict:
+        return self._export_presets(PricingStore(), params, "pricings.json")
+
+    def pricings_import(self, params: dict) -> dict:
+        return self._import_presets(PricingStore(), params)
 
     # --------------------------------------------------------------- sortings
     def sortings(self, params=None) -> list:
@@ -197,6 +240,12 @@ class Api:
         SortingStore().rename(params["old"], params["new"])
         return {"ok": True}
 
+    def sortings_export(self, params=None) -> dict:
+        return self._export_presets(SortingStore(), params, "sortings.json")
+
+    def sortings_import(self, params: dict) -> dict:
+        return self._import_presets(SortingStore(), params)
+
 
 # Methods exposed by name (for the web server dispatch).
 PUBLIC_METHODS = [
@@ -205,5 +254,7 @@ PUBLIC_METHODS = [
     "route_rename", "route_duplicate",
     "stop_new", "stop_apply_pricing", "stop_apply_sorting", "generate",
     "pricings", "pricings_save", "pricings_delete", "pricings_setdefault", "pricings_rename",
+    "pricings_export", "pricings_import",
     "sortings", "sortings_save", "sortings_delete", "sortings_setdefault", "sortings_rename",
+    "sortings_export", "sortings_import",
 ]
