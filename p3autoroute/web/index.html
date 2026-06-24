@@ -15,10 +15,8 @@
       <button data-tab="pricings">Pricings</button>
     </nav>
     <span id="status"></span>
-    <button id="captains-btn"
-            title="Find which towns currently have a captain for hire (reads the running game)">⚓ Captains</button>
     <button id="prices-btn"
-            title="Live optimal buy/sell prices per good — where to buy cheap and sell dear (reads the running game)">💰 Prices</button>
+            title="Trade prices per good — a universal reference table plus live per-town prices">💰 Prices</button>
     <label id="weapons-toggle-label"
            title="Show weapon goods (sword, bow, crossbow, carbine) in routes and pricings">
       <input type="checkbox" id="weapons-toggle"> ⚔️ Weapons
@@ -56,6 +54,8 @@
           <div class="editor-head">
             <strong id="route-title"></strong>
             <div class="spacer"></div>
+            <button id="trade-good-btn"
+                    title="Pick a good and mark Buy/Sell across this route's stops based on which towns produce or demand it">📦 Trade a good…</button>
             <button id="templates-btn">Templates…</button>
             <button id="save-route" class="primary">Save</button>
           </div>

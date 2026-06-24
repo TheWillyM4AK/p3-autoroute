@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 
-from . import generators, goods, settings, towns
+from . import generators, goods, production, settings, towns
 from .models import Route, RuleMode, StopMode, TradeStop, default_rules
 from .presets import (
     DEFAULT_BUYING, DEFAULT_SELLING,
@@ -40,6 +40,8 @@ class Api:
             "defaultPricing": {"buying": list(DEFAULT_BUYING),
                                "selling": list(DEFAULT_SELLING)},
             "towns": {"names": towns.NAMES, "count": towns.COUNT},
+            "production": {"producers": production.PRODUCERS,
+                           "consumable": production.CONSUMABLE},
             "ruleModes": [m.name for m in RuleMode],
             "stopModes": [m.name for m in StopMode],
             "maxStops": generators.MAX_STOPS,
@@ -48,12 +50,6 @@ class Api:
     def settings(self, params=None) -> dict:
         """Persisted app settings (e.g. last opened folder)."""
         return settings.load()
-
-    # --------------------------------------------------------------- captains
-    def captains_locate(self, params=None) -> dict:
-        """Which towns currently have a hireable captain (reads live game RAM)."""
-        from . import captains
-        return captains.locate()
 
     # --------------------------------------------------------------- prices
     def prices_table(self, params=None) -> dict:
@@ -195,7 +191,7 @@ class Api:
 
 # Methods exposed by name (for the web server dispatch).
 PUBLIC_METHODS = [
-    "meta", "settings", "captains_locate", "prices_table", "prices_live", "pick_folder", "folder_open",
+    "meta", "settings", "prices_table", "prices_live", "pick_folder", "folder_open",
     "route_load", "route_save", "route_create", "route_delete",
     "route_rename", "route_duplicate",
     "stop_new", "stop_apply_pricing", "stop_apply_sorting", "generate",
