@@ -75,10 +75,15 @@ CONVOY_STRIDE = 0x3C
 CONVOY_STATUS = 0x12            # u16
 CONVOY_TOWN = 0x39              # u16, current town index
 
-# A ship's hold reserves a fixed slice for weapons/sailors (per P3Modding); the
-# rest is cargo space. Internal units are "load * good size", so dividing by the
-# barrel size gives the game's uniform hold unit (a barrel = 1, a bundle = 10).
-HOLD_RESERVE = 10000
+# capacity@0x10 is the hold figure the game itself shows (verified live on an
+# unarmed Snaikka: 30000/200 == the 150 the in-game ship sheet reports), so we
+# convert it straight to the game's uniform hold unit (a barrel = 1, a bundle =
+# 10) without subtracting anything. The in-game hold figure shrinks as you mount
+# weapons / take shipyard extensions (per the P3Modding/wiki notes), and this
+# field IS that figure, so it already reflects armament — no separate weapon term
+# is needed. The old fixed -10000 "reserve" was the placeholder p3-lib's
+# calc_free_capacity carries behind a `TODO weapons, sailors`; it simply shaved
+# 50 barrels off every ship (showing 100 for a 150-hold ship).
 HOLD_UNIT = goods.BARREL        # 200
 
 SHIP_TYPE_NAMES = ["Snaikka", "Craier", "Cog", "Hulk"]
@@ -128,7 +133,6 @@ def _read_ship(mem, addr: int, game_time: int) -> dict:
 
     capacity = u32(SHIP_CAPACITY)
     used = sum(w for w in wares if w > 0)
-    usable = max(0, capacity - HOLD_RESERVE)
     max_h = u32(SHIP_MAX_HEALTH)
     cur_h = u32(SHIP_CUR_HEALTH)
 
@@ -152,9 +156,9 @@ def _read_ship(mem, addr: int, game_time: int) -> dict:
         "convoyId": None if convoy_id == NONE_ID else convoy_id,
         # Hold figures in the game's uniform unit (barrel = 1, bundle = 10).
         "holdUsed": round(used / HOLD_UNIT),
-        "holdTotal": round(usable / HOLD_UNIT),
-        "holdFree": round((usable - used) / HOLD_UNIT),
-        "holdPct": round(100 * used / usable) if usable > 0 else 0,
+        "holdTotal": round(capacity / HOLD_UNIT),
+        "holdFree": round((capacity - used) / HOLD_UNIT),
+        "holdPct": round(100 * used / capacity) if capacity > 0 else 0,
         "townIndex": None if last_town == NONE_TOWN else last_town,
         "town": _town_name(last_town),
         "destIndex": None if dest_town == NONE_TOWN else dest_town,
@@ -209,7 +213,9 @@ def read(params=None) -> dict:
         day = mem.u8(GAME_WORLD_PTR + GW_DAY)
         month = mem.u8(GAME_WORLD_PTR + GW_MONTH)
         year = mem.u16(GAME_WORLD_PTR + GW_YEAR)
-        if not (1 <= day <= 31 and 1 <= month <= 12 and 1000 <= year <= 2000):
+        # The game stores the month 0-indexed (January = 0), so a valid month is
+        # 0..11 — the old `1 <= month` wrongly rejected January as "unknown build".
+        if not (1 <= day <= 31 and 0 <= month <= 11 and 1000 <= year <= 2000):
             return _err("unknown_version",
                         "This game build isn't recognised (its internal "
                         "addresses don't match). Tested with the 1.x GOG/retail "
