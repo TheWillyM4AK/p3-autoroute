@@ -342,3 +342,64 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 .prices-table .pr-weeks { color: var(--muted); }
 .prices-table .pr-where { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
 .pr-prod { opacity: .75; }
+
+/* Ships modal ----------------------------------------------------------- */
+#ships-btn { margin-left: 4px; }
+.ships-body { display: flex; flex-direction: column; gap: 12px; }
+.ship-card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel); }
+.ship-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ship-head .ship-name { font-size: 15px; }
+.ship-head .ship-type {
+  font-size: 11px; padding: 1px 7px; border-radius: 8px;
+  background: var(--row-alt); color: var(--muted);
+}
+.ship-head .ship-health { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ship-head .ship-health.low { color: var(--danger); font-weight: 600; }
+.ship-head .ship-loc { margin-left: auto; font-size: 13px; color: var(--muted); }
+.ship-head .ship-loc .ship-dest { color: var(--accent); font-weight: 600; }
+.ship-head .ship-loc .ship-eta { color: var(--withdraw); font-weight: 600; }
+
+/* Hold bar */
+.hold-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.hold-bar {
+  flex: 1; height: 12px; border-radius: 6px; overflow: hidden;
+  background: var(--row-alt); border: 1px solid var(--line);
+}
+.hold-fill { height: 100%; background: var(--accent); transition: width .4s ease; }
+.hold-label { font-size: 12px; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hold-label .hold-free { color: var(--muted); }
+
+/* Cargo table */
+.cargo-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cargo-table th, .cargo-table td {
+  padding: 3px 8px; border-bottom: 1px solid var(--row-alt); text-align: right;
+}
+.cargo-table th { color: var(--muted); font-weight: 600; text-align: right; }
+.cargo-table th:first-child, .cargo-table .cargo-good { text-align: left; }
+.cargo-table td { font-variant-numeric: tabular-nums; }
+.cargo-table .cargo-good { font-weight: 600; white-space: nowrap; font-variant-numeric: normal; }
+.cargo-table .cargo-good .good-icon { vertical-align: middle; margin-right: 6px; }
+.cargo-table .cargo-empty { text-align: center; color: var(--muted); }
+.cargo-delta { font-size: 11px; font-weight: 700; }
+.cargo-delta.buy { color: var(--buy); }
+.cargo-delta.sell { color: var(--sell); }
+/* A cargo line flashes when it changed since the last tick (buy/sell). */
+.cargo-change.buy { animation: cargo-flash-buy 1s ease-out; }
+.cargo-change.sell { animation: cargo-flash-sell 1s ease-out; }
+@keyframes cargo-flash-buy { from { background: var(--buy); } to { background: transparent; } }
+@keyframes cargo-flash-sell { from { background: var(--sell); } to { background: transparent; } }
+
+.ship-foot {
+  margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--row-alt);
+  font-size: 13px; color: var(--muted); text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ship-foot strong { color: var(--ink); }
+
+/* Convoy grouping */
+.convoy-group { border: 1px dashed var(--accent); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.convoy-head { font-weight: 600; color: var(--accent); font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cargo-change.buy, .cargo-change.sell { animation: none; }
+}

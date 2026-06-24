@@ -1082,6 +1082,174 @@ function openPrices() {
   setMode("table");
 }
 
+// --------------------------------------------------------------------------
+// Ships — live view of the player's ships and convoys
+// --------------------------------------------------------------------------
+// Reads the running game (Api.ships_live) and shows, per ship, its hold, the
+// goods aboard with their average purchase price, and where it is heading.
+// Auto-refreshing once a second turns the snapshot into a live view: each cargo
+// line flashes green when it grows (a buy) and orange when it shrinks (a sell),
+// so you can watch a ship fill and empty as the game runs at high speed.
+// Days-until-arrival as a short label: hours under a day, whole days otherwise.
+function fmtEta(d) {
+  if (d == null) return null;
+  if (d < 1) { const hrs = Math.max(1, Math.round(d * 24)); return "~" + hrs + " h"; }
+  const days = Math.round(d);
+  return "~" + days + (days === 1 ? " día" : " días");
+}
+
+function shipsError(data) {
+  const msg = (data && data.error) || "Couldn't read the game.";
+  return h("div", { class: "prices-msg" },
+    h("p", { class: "error" }, msg),
+    h("p", { class: "hint" },
+      "This view reads the running Patrician III — open the game with a "
+      + "savegame loaded, then press ↻ Refrescar."));
+}
+
+function openShips() {
+  let liveTimer = null;
+  // ship name -> Map(good -> loads) from the previous tick, to diff against.
+  let prev = new Map();
+
+  const autoChk = h("input", { type: "checkbox", checked: true });
+  const autoWrap = h("label", { class: "hint" }, autoChk, " Auto (1s)");
+  const btnRefresh = h("button", { class: "pr-refresh" }, "↻ Refrescar");
+  const note = h("p", { class: "prices-summary" });
+  const body = h("div", { class: "prices-body ships-body" });
+
+  const node = h("div", { class: "modal prices-modal ships-modal" },
+    h("h2", null, "🚢 Ships & convoys"),
+    h("div", { class: "prices-controls" }, btnRefresh, autoWrap),
+    note, body);
+  modal(node);
+
+  function stopAuto() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
+  function startAuto() {
+    stopAuto();
+    if (!autoChk.checked) return;
+    liveTimer = setInterval(() => {
+      if (!document.body.contains(node)) { stopAuto(); return; }  // modal closed
+      if (autoChk.checked) refresh(true);
+    }, 1000);
+  }
+
+  function shipCard(s, next) {
+    // Location: docked at a town, or at sea heading to its destination. Only
+    // show the "→ dest" when it adds information (not when already docked there).
+    const showDest = s.dest && s.destIndex !== s.townIndex;
+    const eta = fmtEta(s.etaDays);
+    const loc = h("span", { class: "ship-loc" },
+      s.atSea ? "🌊 En el mar" : (s.town ? "⚓ En " + s.town : "—"),
+      showDest ? h("span", { class: "ship-dest" }, " → " + s.dest) : null,
+      eta ? h("span", { class: "ship-eta", title: "Días que faltan para llegar al destino" }, " · ⏳ " + eta) : null);
+
+    const bar = h("div", { class: "hold-bar", title: `${s.holdPct}% llena` },
+      h("div", { class: "hold-fill", style: "width:" + s.holdPct + "%" }));
+    const holdLabel = h("div", { class: "hold-label" },
+      `Bodega ${s.holdUsed}/${s.holdTotal}`,
+      h("span", { class: "hold-free" }, ` · ${s.holdFree} libre`));
+
+    // Diff this ship's cargo against the previous tick to flag buys/sells.
+    const before = prev.get(s.name);
+    const cargoMap = new Map();
+    s.cargo.forEach((c) => cargoMap.set(c.good, c.loads));
+    next.set(s.name, cargoMap);
+
+    const rows = [];
+    if (s.cargo.length) {
+      s.cargo.forEach((c) => {
+        const old = before ? before.get(c.good) : undefined;
+        const delta = old != null ? Math.round((c.loads - old) * 10) / 10 : 0;
+        const dir = delta > 0 ? "buy" : delta < 0 ? "sell" : "";
+        rows.push(h("tr", { class: dir ? "cargo-change " + dir : "" },
+          h("td", { class: "cargo-good" }, goodIcon(c.good), META.goods.names[c.good]),
+          h("td", { class: "cargo-loads" }, String(c.loads),
+            dir ? h("span", { class: "cargo-delta " + dir },
+              (delta > 0 ? " ▲+" + delta : " ▼" + Math.abs(delta))) : null),
+          h("td", { class: "cargo-price" }, c.avgPrice == null ? "—" : String(c.avgPrice)),
+          h("td", { class: "cargo-value" }, c.value == null ? "—" : c.value.toLocaleString())));
+      });
+    }
+    // Goods that were aboard last tick but are gone now → just sold off.
+    if (before) {
+      before.forEach((oldLoads, g) => {
+        if (cargoMap.has(g)) return;
+        rows.push(h("tr", { class: "cargo-change sell" },
+          h("td", { class: "cargo-good" }, goodIcon(g), META.goods.names[g]),
+          h("td", { class: "cargo-loads" }, "0",
+            h("span", { class: "cargo-delta sell" }, " ▼" + oldLoads)),
+          h("td", { class: "cargo-price" }, "—"),
+          h("td", { class: "cargo-value" }, "—")));
+      });
+    }
+    if (!rows.length) rows.push(h("tr", null, h("td", { class: "cargo-empty", colspan: 4 }, "Bodega vacía")));
+
+    const table = h("table", { class: "cargo-table" },
+      h("thead", null, h("tr", null,
+        h("th", null, "Mercancía"), h("th", null, "Cargas"),
+        h("th", null, "Precio medio"), h("th", null, "Valor"))),
+      h("tbody", null, rows));
+
+    return h("div", { class: "ship-card" },
+      h("div", { class: "ship-head" },
+        h("strong", { class: "ship-name" }, s.name),
+        h("span", { class: "ship-type" }, s.type),
+        s.health != null ? h("span", { class: "ship-health" + (s.health < 50 ? " low" : "") },
+          "🛠 " + s.health + "%") : null,
+        loc),
+      h("div", { class: "hold-row" }, bar, holdLabel),
+      table,
+      s.cargoValue ? h("div", { class: "ship-foot", title: "Oro total que pagaste por todo lo que lleva a bordo (lo que el juego calcula)" },
+        "💰 Capital a bordo: ", h("strong", null, s.cargoValue.toLocaleString())) : null);
+  }
+
+  function renderShips(data) {
+    const d = data.date;
+    const ships = data.ships;
+    note.textContent = (ships.length
+      ? `${ships.length} barco(s)`
+      : "Sin barcos") + ` · ${d.day} ${MONTHS[d.month]} ${d.year}`;
+
+    const next = new Map();
+    if (!ships.length) {
+      body.replaceChildren(h("p", { class: "hint" }, "Este mercader no tiene barcos."));
+      prev = next; return;
+    }
+
+    // Loose ships first, then one block per convoy.
+    const loose = [];
+    const convoys = new Map();
+    ships.forEach((s) => {
+      if (s.convoyId == null) loose.push(s);
+      else { if (!convoys.has(s.convoyId)) convoys.set(s.convoyId, []); convoys.get(s.convoyId).push(s); }
+    });
+    const cards = loose.map((s) => shipCard(s, next));
+    convoys.forEach((group, id) => {
+      cards.push(h("div", { class: "convoy-group" },
+        h("div", { class: "convoy-head" }, `⚓ Convoy #${id} — ${group.length} barco(s)`),
+        ...group.map((s) => shipCard(s, next))));
+    });
+    body.replaceChildren(...cards);
+    prev = next;
+  }
+
+  // ``silent`` (auto-refresh tick): re-read without the "Reading…" flicker and
+  // keep showing the last good data on a transient failure.
+  async function refresh(silent) {
+    if (!silent) body.replaceChildren(h("p", { class: "hint" }, "Reading the game…"));
+    let d;
+    try { d = await api("/api/ships/live"); }
+    catch (e) { d = { ok: false, error: "Unexpected error: " + e }; }
+    if (d && d.ok) renderShips(d);
+    else if (!silent) { note.textContent = ""; body.replaceChildren(shipsError(d)); }
+  }
+
+  btnRefresh.addEventListener("click", () => refresh(false));
+  autoChk.addEventListener("change", () => { if (autoChk.checked) startAuto(); else stopAuto(); });
+  refresh(false).then(startAuto);
+}
+
 function openTemplates() {
   let current = GENERATORS[0];
   const body = h("div");
@@ -1488,6 +1656,7 @@ async function init() {
   $("#apply-pricing-btn").addEventListener("click", applyRoutePricing);
   $("#templates-btn").addEventListener("click", openTemplates);
   $("#prices-btn").addEventListener("click", openPrices);
+  $("#ships-btn").addEventListener("click", openShips);
   setStatus("Ready. Open your game's Save\\AutoRoute folder.");
 
   // Remember the last opened folder and reopen it automatically.
