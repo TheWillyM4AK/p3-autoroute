@@ -193,7 +193,9 @@ def read(params=None) -> dict:
         day = mem.u8(GAME_WORLD_PTR + GW_DAY)
         month = mem.u8(GAME_WORLD_PTR + GW_MONTH)
         year = mem.u16(GAME_WORLD_PTR + GW_YEAR)
-        if not (1 <= day <= 31 and 1 <= month <= 12 and 1000 <= year <= 2000):
+        # The game stores the month 0-indexed (January = 0), so a valid month is
+        # 0..11 — the old `1 <= month` wrongly rejected January as "unknown build".
+        if not (1 <= day <= 31 and 0 <= month <= 11 and 1000 <= year <= 2000):
             return _err("unknown_version",
                         "This game build isn't recognised (its internal "
                         "addresses don't match). Tested with the 1.x GOG/retail "

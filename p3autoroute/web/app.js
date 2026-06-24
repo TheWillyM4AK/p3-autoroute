@@ -882,7 +882,8 @@ function applyRoutePricing() {
 // --------------------------------------------------------------------------
 // Prices — universal reference table + optional live per-town view
 // --------------------------------------------------------------------------
-const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+// The game stores the month 0-indexed (January = 0), so this lookup is 0-indexed too.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function priceError(data) {
