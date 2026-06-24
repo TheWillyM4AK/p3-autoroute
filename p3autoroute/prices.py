@@ -21,6 +21,7 @@ is done lazily inside functions so the module imports cleanly on any platform
 """
 from __future__ import annotations
 
+import statistics
 import struct
 import sys
 
@@ -40,9 +41,11 @@ GW_TOWNS_ARRAY = 0x68           # ptr -> towns array
 # Town struct (stride 0x9F8). Storage fields overlap the town base.
 TOWN_STRIDE = 0x9F8
 TOWN_STOCK = 0x04               # [i32; 24] current ware stock
+TOWN_CONS_BUSINESS = 0x64       # [i32; 24] daily business consumption
 TOWN_PRODUCTION = 0xC4          # [i32; 24] daily production
 TOWN_INDEX = 0x2C0              # u8, 0..23 (matches towns.NAMES order)
 TOWN_CITIZENS = 0x2D4           # u32, used as an "is this a real town" sanity bound
+TOWN_CONS_CITIZENS = 0x310      # [i32; 24] daily citizen consumption
 TOWN_THRESHOLDS = 0x4F0         # [[i32; 4]; 24] live price thresholds t0..t3
 
 PROCESS_NAMES = ("patrician3", "patrician 3")  # matches Patrician3.exe & the modloader
@@ -58,6 +61,11 @@ TRADE_GOODS = [g for g in range(goods.COUNT) if pricing.BASE_PRICES[g] is not No
 
 def _err(code: str, error: str) -> dict:
     return {"ok": False, "code": code, "error": error}
+
+
+def _median(values) -> int | None:
+    """Rounded median of a list of prices, or ``None`` when the list is empty."""
+    return round(statistics.median(values)) if values else None
 
 
 def _find_pid(names):
@@ -196,6 +204,9 @@ def read(params=None) -> dict:
 
         # good id -> list of per-town quotes
         quotes: dict[int, list] = {g: [] for g in TRADE_GOODS}
+        # good id -> {key: [per-town price at a reference weeks-of-supply]}; the
+        # universal table's live columns are the median of these across towns.
+        ref: dict[int, dict] = {g: {"sell1": [], "sell2": [], "buy2": [], "buy3": []} for g in TRADE_GOODS}
         for t in range(town_count):
             base = towns_ptr + TOWN_STRIDE * t
             try:
@@ -209,6 +220,8 @@ def read(params=None) -> dict:
             stock = struct.unpack("<24i", mem.read(base + TOWN_STOCK, 96))
             thr = struct.unpack("<96i", mem.read(base + TOWN_THRESHOLDS, 384))
             prod = struct.unpack("<24i", mem.read(base + TOWN_PRODUCTION, 96))
+            cons_cit = struct.unpack("<24i", mem.read(base + TOWN_CONS_CITIZENS, 96))
+            cons_biz = struct.unpack("<24i", mem.read(base + TOWN_CONS_BUSINESS, 96))
             for g in TRADE_GOODS:
                 size = goods.SIZES[g]
                 base_price = pricing.BASE_PRICES[g]
@@ -220,12 +233,27 @@ def read(params=None) -> dict:
                 s = stock[g]
                 sell = pricing.unit_sell_price(s, t4, base_price, size, difficulty)
                 buy = pricing.unit_buy_price(s, t4, base_price, size) if s >= size else None
-                # "Weeks of supply" measured against the price thresholds so it
-                # tracks the price exactly (no cross-town inversions): t1 is the
-                # ~3-week level where the price equals base, so 3*stock/t1 is the
-                # weeks-equivalent — literal weeks for staples, and "3 weeks"
-                # always means the base price.
-                weeks = round(3 * s / t4[1], 1)
+                # Literal weeks of supply = stock / weekly consumption, matching
+                # the figure the game shows (gross citizen+business consumption,
+                # production excluded). ``None`` (∞) when the town doesn't consume
+                # the good. NB: this no longer tracks the price 1:1 — for building
+                # materials the additive threshold bonus shifts the price up at a
+                # given week count — but it is what the player reads in-game.
+                weekly = (cons_cit[g] + cons_biz[g]) * 7
+                weeks = round(s / weekly, 1) if weekly > 0 else None
+                # Reference prices computed at fixed weeks-of-supply using THIS
+                # town's real thresholds (robust: no extrapolation from observed
+                # stock, so towns far from the target week still contribute).
+                if weekly > 0:
+                    s2, s3 = round(2 * weekly), round(3 * weekly)
+                    ref[g]["sell1"].append(
+                        pricing.unit_sell_price(round(weekly), t4, base_price, size, difficulty))
+                    ref[g]["sell2"].append(
+                        pricing.unit_sell_price(s2, t4, base_price, size, difficulty))
+                    if s2 >= size:
+                        ref[g]["buy2"].append(pricing.unit_buy_price(s2, t4, base_price, size))
+                    if s3 >= size:
+                        ref[g]["buy3"].append(pricing.unit_buy_price(s3, t4, base_price, size))
                 quotes[g].append({
                     "townIndex": town_index,
                     "town": name,
@@ -247,6 +275,14 @@ def read(params=None) -> dict:
                 "floor": round(per * pricing.BUY_FLOOR),
                 "ceiling": round(per * pricing.SELL_DIFFICULTY[difficulty]),
                 "basePerBarrel": round(per, 1),
+                # Real-world counterparts to the universal columns: median across
+                # towns of the price at 1/2/3 weeks of supply. ``None`` when no
+                # town gives a usable figure (e.g. a good held in huge bulk like
+                # bricks never sits near 2–3 weeks).
+                "sell1wk": _median(ref[g]["sell1"]),
+                "sell2wk": _median(ref[g]["sell2"]),
+                "buy2wk": _median(ref[g]["buy2"]),
+                "buy3wk": _median(ref[g]["buy3"]),
                 "towns": sorted(quotes[g], key=lambda q: q["townIndex"]),
             })
 

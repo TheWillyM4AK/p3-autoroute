@@ -157,24 +157,41 @@ BUY_2WK_FACTOR = 1.25   # buy down to 2 weeks (the source's satisfaction floor; 
 SELL_2WK_FACTOR = 1.2   # sell up to the 2-week satisfaction cap (the default)
 SELL_1WK_FACTOR = 1.4   # sell only up to 1 week (premium / cream-skim)
 
+# The 5 "building materials" — Timber, Iron Goods, Pitch, Hemp, Bricks (good ids
+# 11, 12, 15, 17, 19) — carry a FIXED ADDITIVE bonus on the price thresholds
+# t0/t1 (see ``update_town_price_thresholds``), on top of the consumption scaling.
+# That additive term does NOT scale with a town's consumption, so for these wares
+# the price-at-N-weeks is not town-independent: the universal columns below are
+# only a FLOOR (the high-consumption / metropolis value) and the real price runs
+# higher in small/medium towns. The live per-town view gives the exact figure.
+BUILDING_MATERIALS = frozenset({11, 12, 15, 17, 19})
 
-def universal_table():
+
+def universal_table(difficulty=DIFFICULTY_NORMAL):
     """Constant per-good reference prices for setting route rules.
 
-    Returns ``{"ok": True, "goods": [{"good", "name", "floor", "base", "sell2wk",
-    "buy2wk", "sell1wk", "ceiling"}]}`` in gold per barrel/bundle — fixed
-    multiples of each good's base price, so they never change with the game.
-    Ordered cheapest → dearest, they trace the good's whole price range:
+    Returns ``{"ok": True, "goods": [{"good", "name", "approx", "floor", "buy3wk",
+    "buy2wk", "base", "sell2wk", "sell1wk", "ceiling"}]}`` in gold per barrel/bundle
+    — fixed multiples of each good's base price. Ordered cheapest → dearest, they
+    trace the good's whole price range:
 
     - ``floor`` (0.6×): the cheapest you'll ever pay — a deep-glut town.
-    - ``base`` (1.0×): the 3-week pivot where buy = sell = base.
-    - ``sell2wk`` (1.2×): sell down to the 2-week satisfaction cap (the default).
+    - ``buy3wk`` (1.0×): buying at the 3-week pivot ≈ base.
     - ``buy2wk`` (1.25×): aggressive buy cap — drains a town to 2 weeks (below
       that you penalise its satisfaction).
+    - ``base`` (1.0×): the 3-week pivot where buy = sell = base.
+    - ``sell2wk`` (1.2×): sell down to the 2-week satisfaction cap (the default).
     - ``sell1wk`` (1.4×): premium sell — only down to 1 week.
-    - ``ceiling`` (2.0×, normal difficulty): the dearest you'll get — an empty town.
+    - ``ceiling`` (2.0× at normal, 2.2/1.8 at easy/hard): the dearest you'll get —
+      an empty town; only this column varies with ``difficulty``.
+
+    Each row also carries ``"approx"``: ``True`` for the 5 building materials whose
+    additive threshold bonus makes the per-N-weeks columns town-dependent (see
+    :data:`BUILDING_MATERIALS`); the live per-town columns are exact for them.
     """
     from . import goods
+    if difficulty not in (0, 1, 2):
+        difficulty = DIFFICULTY_NORMAL
     out = []
     for g, base in enumerate(BASE_PRICES):
         if base is None:
@@ -183,12 +200,14 @@ def universal_table():
         out.append({
             "good": g,
             "name": goods.NAMES[g],
+            "approx": g in BUILDING_MATERIALS,
             "floor": round(per * BUY_FLOOR),
+            "buy3wk": round(per * BASE_FACTOR),
+            "buy2wk": round(per * BUY_2WK_FACTOR),
             "base": round(per * BASE_FACTOR),
             "sell2wk": round(per * SELL_2WK_FACTOR),
-            "buy2wk": round(per * BUY_2WK_FACTOR),
             "sell1wk": round(per * SELL_1WK_FACTOR),
-            "ceiling": round(per * SELL_DIFFICULTY[DIFFICULTY_NORMAL]),
+            "ceiling": round(per * SELL_DIFFICULTY[difficulty]),
         })
     return {"ok": True, "goods": out}
 

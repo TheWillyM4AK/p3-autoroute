@@ -304,9 +304,16 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
   font-weight: 600; white-space: nowrap; font-variant-numeric: normal;
 }
 .prices-table .pr-good .good-icon { vertical-align: middle; margin-right: 6px; }
-.prices-table .pr-buy, .prices-table .pr-floor { color: var(--buy); }
-.prices-table .pr-sell, .prices-table .pr-ceiling { color: var(--sell); }
+.prices-table .pr-buy { color: var(--buy); }
+.prices-table .pr-sell { color: var(--sell); }
 .prices-table .pr-base { font-weight: 600; }
+/* Floor / Base / Ceiling are the neutral anchors of the scale. */
+.prices-table .pr-floor, .prices-table .pr-ceiling { color: var(--muted); }
+/* Dual cell: theoretical value (faint, on top) over the live value (bold, coloured). */
+.prices-table .pr-dual .t-val { color: var(--muted); font-size: 11px; line-height: 1.25; }
+.prices-table .pr-dual .l-val { font-weight: 600; line-height: 1.25; }
+.prices-table .pr-dual .l-val.buy { color: var(--buy); }
+.prices-table .pr-dual .l-val.sell { color: var(--sell); }
 .prices-table .pr-weeks { color: var(--muted); }
 .prices-table .pr-where { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
 .pr-prod { opacity: .75; }

@@ -67,6 +67,7 @@ const state = {
   route: null,         // {name, stops:[...]}
   selectedStop: -1,
   showWeapons: false,
+  difficulty: 1,       // live-price difficulty (0/1/2), persisted in settings
   pricings: [],
   sortings: [],
 };
@@ -733,25 +734,45 @@ function priceError(data) {
       + "savegame loaded. (The universal table doesn't need the game.)"));
 }
 
-// Constant per-good reference prices, cheapest → dearest (fixed × base, never change).
-function buildUniversalTable(data) {
-  const trs = data.goods.map((g) => h("tr", null,
-    h("td", { class: "pr-good" }, goodLabel(g.good)),
-    h("td", { class: "pr-floor" }, String(g.floor)),
-    h("td", { class: "pr-base" }, String(g.base)),
-    h("td", { class: "pr-sell" }, String(g.sell2wk)),
-    h("td", { class: "pr-buy" }, String(g.buy2wk)),
-    h("td", { class: "pr-sell" }, String(g.sell1wk)),
-    h("td", { class: "pr-ceiling" }, String(g.ceiling))));
+// Per-good reference prices, cheapest → dearest. Floor / Base / Ceiling are the
+// constant neutral anchors of the scale (single theoretical value). The four
+// "per-N-weeks" columns carry a DUAL value — theoretical (faint, top) over the
+// live median from the running game (bold, coloured) — because that is where
+// the additive threshold bonus makes theory and reality diverge. ``liveMap`` maps
+// good id → its live row, or is null when the game isn't readable (live → "—").
+function buildUniversalTable(data, liveMap) {
+  const fmt = (v) => (v == null ? "—" : String(v));
+  const dual = (theo, live, cls) => h("td", { class: "pr-dual" },
+    h("div", { class: "t-val" }, fmt(theo)),
+    h("div", { class: "l-val " + cls }, fmt(live)));
+  const trs = data.goods.map((g) => {
+    const lv = liveMap ? liveMap[g.good] : null;
+    return h("tr", null,
+      h("td", { class: "pr-good" }, g.approx
+        ? [...goodLabel(g.good), h("span", { class: "pr-approx",
+            title: "Material de construcción: el precio real a N semanas difiere del teórico "
+              + "(bono aditivo). Fíjate en el valor en vivo (abajo) de las columnas dobles." }, " *")]
+        : goodLabel(g.good)),
+      h("td", { class: "pr-floor" }, String(g.floor)),
+      dual(g.buy3wk, lv && lv.buy3wk, "buy"),
+      dual(g.buy2wk, lv && lv.buy2wk, "buy"),
+      h("td", { class: "pr-base" }, String(g.base)),
+      dual(g.sell2wk, lv && lv.sell2wk, "sell"),
+      dual(g.sell1wk, lv && lv.sell1wk, "sell"),
+      h("td", { class: "pr-ceiling" }, String(g.ceiling)));
+  });
+  const dualTitle = (txt) => txt + " Celda doble: arriba el teórico, abajo el real de tu "
+    + "partida (mediana de ciudades; — si el juego no está abierto).";
   return h("table", { class: "prices-table" },
     h("thead", null, h("tr", null,
       h("th", null, "Good"),
       h("th", { title: "Cheapest you'll ever pay — a deep-glut town (0.6× base)" }, "Floor"),
-      h("th", { title: "3-week pivot: buy = sell = base (1.0×). Buy at/below it; sell down to it to clear stock" }, "Base (3wk)"),
-      h("th", { title: "Sell down to the 2-week satisfaction cap (1.2× base) — the default" }, "Sell 2wk"),
-      h("th", { title: "Aggressive buy cap (1.25× base) — drains a town to 2 weeks; below that hurts its satisfaction" }, "Buy 2wk"),
-      h("th", { title: "Premium sell (1.4× base) — only down to 1 week (cream-skim)" }, "Sell 1wk"),
-      h("th", { title: "Dearest you'll ever get — an empty town (2× base, normal difficulty)" }, "Ceiling"))),
+      h("th", { title: dualTitle("Compra al pivote de 3 semanas (teórico ≈ base).") }, "Buy 3wk"),
+      h("th", { title: dualTitle("Compra agresiva drenando a 2 semanas (teórico 1,25× base).") }, "Buy 2wk"),
+      h("th", { title: "Pivote neutral (1.0×): a 3 semanas compra = venta = base" }, "Base"),
+      h("th", { title: dualTitle("Venta hasta 2 semanas, lo habitual (teórico 1,2× base).") }, "Sell 2wk"),
+      h("th", { title: dualTitle("Venta premium hasta 1 semana (teórico 1,4× base).") }, "Sell 1wk"),
+      h("th", { title: "Dearest you'll ever get — an empty town (2× base, ajustado a la dificultad)" }, "Ceiling"))),
     h("tbody", null, trs));
 }
 
@@ -767,7 +788,7 @@ function buildTownTable(g) {
   return h("table", { class: "prices-table" },
     h("thead", null, h("tr", null,
       h("th", null, "Town"),
-      h("th", { title: "Weeks of supply vs the price thresholds — 3 ≈ base price; low = scarce (sell), high = glut (buy)" }, "Supply"),
+      h("th", { title: "Semanas de stock = stock ÷ consumo semanal (igual que el juego). Bajo = escaso (vender), alto = saturado (comprar). ∞ = no lo consume" }, "Supply"),
       h("th", { title: "Price to buy one load here" }, "Buy"),
       h("th", { title: "Price you get selling one load here" }, "Sell"))),
     h("tbody", null, trs));
@@ -777,36 +798,62 @@ function openPrices() {
   let mode = "table";   // "table" | "live"
   let liveData = null;  // cached live response
   let liveGood = 0;     // selected good index in the live view
+  let liveTimer = null; // setInterval handle for auto-refresh
 
   const diffSel = h("select", null,
     h("option", { value: "0" }, "Easy"),
-    h("option", { value: "1", selected: true }, "Normal"),
+    h("option", { value: "1" }, "Normal"),
     h("option", { value: "2" }, "Hard"));
+  diffSel.value = String(state.difficulty);   // restore the remembered difficulty
   const tabTable = h("button", { class: "active" }, "Universal");
   const tabLive = h("button", null, "By town (live)");
   const goodSel = h("select", { class: "pr-goodsel" });
   const goodWrap = h("label", { class: "hint", style: "display:none" }, "Good: ", goodSel);
   const diffWrap = h("label", { class: "hint", style: "display:none" }, "Difficulty: ", diffSel);
+  const btnRefresh = h("button", { class: "pr-refresh", style: "display:none" }, "↻ Refrescar");
+  const autoChk = h("input", { type: "checkbox", checked: true });
+  const autoWrap = h("label", { class: "hint", style: "display:none" },
+    autoChk, " Auto (1s)");
   const note = h("p", { class: "prices-summary" });
   const body = h("div", { class: "prices-body" });
 
   const node = h("div", { class: "modal prices-modal" },
     h("h2", null, "💰 Trade prices"),
     h("div", { class: "modal-tabs" }, tabTable, tabLive),
-    h("div", { class: "prices-controls" }, diffWrap, goodWrap),
+    h("div", { class: "prices-controls" }, diffWrap, goodWrap, btnRefresh, autoWrap),
     note, body);
   modal(node);
 
+  function stopAuto() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
+  function startAuto() {
+    stopAuto();
+    if (!autoChk.checked) return;
+    liveTimer = setInterval(() => {
+      if (!document.body.contains(node)) { stopAuto(); return; }  // modal was closed
+      if (mode === "live" && autoChk.checked) refreshLive(true);
+    }, 1000);
+  }
+
   async function showTable() {
+    stopAuto();                         // auto-refresh is only for the live tab
     goodWrap.style.display = "none";
-    diffWrap.style.display = "none";
+    diffWrap.style.display = "";        // the live "Sell 1wk" column depends on it
+    btnRefresh.style.display = "none";
+    autoWrap.style.display = "none";
     body.replaceChildren(h("p", { class: "hint" }, "Computing…"));
-    let data;
-    try { data = await api("/api/prices/table", {}); }
+    let data, live;
+    try { data = await api("/api/prices/table", { difficulty: Number(diffSel.value) }); }
     catch (e) { data = { ok: false, error: "Unexpected error: " + e }; }
-    note.textContent = "Gold per barrel/bundle — constant reference prices (fixed × base, never change), "
-      + "left→right cheapest→dearest. Base = the 3-week pivot where buy = sell.";
-    body.replaceChildren(data && data.ok ? buildUniversalTable(data) : priceError(data));
+    try { live = await api("/api/prices/live", { difficulty: Number(diffSel.value) }); }
+    catch (e) { live = null; }
+    const liveMap = (live && live.ok)
+      ? Object.fromEntries(live.goods.map((g) => [g.good, g])) : null;
+    note.textContent = "Oro por carga (barril/bulto), de barato a caro. Floor · Base · Ceiling son los "
+      + "anclajes fijos de la escala (× base). Las 4 columnas a-N-semanas llevan doble valor: arriba el "
+      + "teórico, abajo el real de tu partida "
+      + (liveMap ? "(mediana de las ciudades en vivo)." : "(abre el juego para ver el valor en vivo).")
+      + " * = material de construcción: ahí teoría y realidad divergen.";
+    body.replaceChildren(data && data.ok ? buildUniversalTable(data, liveMap) : priceError(data));
   }
 
   function renderLive() {
@@ -820,20 +867,33 @@ function openPrices() {
     body.replaceChildren(buildTownTable(g));
   }
 
+  // ``silent`` (auto-refresh tick): re-read without the "Reading…" flicker, keep
+  // the selected good, and on failure keep showing the last good data.
+  async function refreshLive(silent) {
+    if (!silent) body.replaceChildren(h("p", { class: "hint" }, "Reading the game…"));
+    let d;
+    try { d = await api("/api/prices/live", { difficulty: Number(diffSel.value) }); }
+    catch (e) { d = { ok: false, error: "Unexpected error: " + e }; }
+    liveData = d;
+    if (d && d.ok) {
+      if (goodSel.options.length !== d.goods.length) {
+        goodSel.replaceChildren(...d.goods.map((g, i) => h("option", { value: String(i) }, g.name)));
+        goodSel.value = String(Math.min(liveGood, d.goods.length - 1));
+      }
+      renderLive();
+    } else if (!silent) {
+      note.textContent = "";
+      body.replaceChildren(priceError(d));
+    }
+  }
+
   async function loadLive() {
     diffWrap.style.display = "";
     goodWrap.style.display = "none";
-    body.replaceChildren(h("p", { class: "hint" }, "Reading the game…"));
-    try { liveData = await api("/api/prices/live", { difficulty: Number(diffSel.value) }); }
-    catch (e) { liveData = { ok: false, error: "Unexpected error: " + e }; }
-    if (liveData && liveData.ok) {
-      goodSel.replaceChildren(...liveData.goods.map((g, i) => h("option", { value: String(i) }, g.name)));
-      goodSel.value = String(Math.min(liveGood, liveData.goods.length - 1));
-      renderLive();
-    } else {
-      note.textContent = "";
-      body.replaceChildren(priceError(liveData));
-    }
+    btnRefresh.style.display = "";
+    autoWrap.style.display = "";
+    await refreshLive(false);
+    startAuto();
   }
 
   function setMode(m) {
@@ -844,8 +904,16 @@ function openPrices() {
   }
   tabTable.addEventListener("click", () => setMode("table"));
   tabLive.addEventListener("click", () => setMode("live"));
+  btnRefresh.addEventListener("click", loadLive);
+  autoChk.addEventListener("change", () => {
+    if (autoChk.checked && mode === "live") startAuto(); else stopAuto();
+  });
   goodSel.addEventListener("change", renderLive);
-  diffSel.addEventListener("change", () => setMode(mode));
+  diffSel.addEventListener("change", () => {
+    state.difficulty = Number(diffSel.value);
+    api("/api/settings/set", { difficulty: state.difficulty });  // remember it
+    setMode(mode);
+  });
   setMode("table");
 }
 
@@ -1159,6 +1227,7 @@ async function init() {
 
   // Remember the last opened folder and reopen it automatically.
   const cfg = await api("/api/settings");
+  if (cfg && cfg.difficulty != null) state.difficulty = Number(cfg.difficulty);
   if (cfg && cfg.last_folder) {
     $("#folder-path").value = cfg.last_folder;
     await openFolder();
