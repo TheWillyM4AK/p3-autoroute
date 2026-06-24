@@ -174,10 +174,17 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 .sorting-good.dragover { border-color: var(--accent); border-style: dashed; }
 .pricing-grid { width: 100%; border-collapse: collapse; }
 .pricing-grid th, .pricing-grid td { padding: 4px 8px; border-bottom: 1px solid var(--row-alt); text-align: left; }
+/* Buy/Sell headers centred over their wide stepper columns */
+.pricing-grid th.price-col { text-align: center; }
 /* Hardcoded default prices, always shown for reference (read-only) */
 .pricing-grid td.default-price { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 .pricing-grid th.default-price { color: var(--muted); text-align: right; font-weight: normal; }
 .pricing-grid td.default-price.diff { color: var(--accent); font-weight: 600; }
+/* Buy/Sell price cell: number input flanked by −10/−5/−1 … +1/+5/+10 steppers */
+.price-stepper { display: flex; align-items: center; justify-content: center; gap: 3px; }
+.price-stepper input[type=number] { width: 60px; text-align: right; }
+.price-stepper .step { padding: 3px 5px; min-width: 30px; font-size: 11px;
+  font-variant-numeric: tabular-nums; }
 
 /* Modal */
 #modal-root .backdrop {

@@ -1336,6 +1336,23 @@ let selectedPricing = null;
 
 async function reloadPricings() { state.pricings = await api("/api/pricings"); }
 
+// A price number-input flanked by quick step buttons (−10 −5 −1 … +1 +5 +10).
+// `commit(v)` receives the clamped value on every edit, typed or stepped.
+function priceStepper(value, commit) {
+  const inp = h("input", { type: "number", min: 0, max: 9999, value });
+  const cur = () => parseInt(inp.value || "0", 10);
+  const set = (v) => {
+    v = Math.max(0, Math.min(9999, v));
+    inp.value = v; commit(v);
+  };
+  inp.addEventListener("change", () => set(cur()));
+  const step = (d) => h("button", { type: "button", class: "step",
+    title: (d > 0 ? "Add " : "Subtract ") + Math.abs(d),
+    onclick: () => set(cur() + d) }, (d > 0 ? "+" : "−") + Math.abs(d));
+  return h("div", { class: "price-stepper" },
+    step(-10), step(-5), step(-1), inp, step(1), step(5), step(10));
+}
+
 function renderPricingsTab() {
   const root = $("#tab-pricings");
   if (!state.pricings.length) reloadPricings().then(() => renderPricingsTab());
@@ -1364,10 +1381,8 @@ function renderPricingsTab() {
     const rows = [];
     for (const g of order) {
       if (!META.goods.visibility[g] && !state.showWeapons) continue;
-      const b = h("input", { type: "number", min: 0, max: 9999, value: preset.buying[g],
-        onchange: (e) => { preset.buying[g] = parseInt(e.target.value || "0", 10); } });
-      const s = h("input", { type: "number", min: 0, max: 9999, value: preset.selling[g],
-        onchange: (e) => { preset.selling[g] = parseInt(e.target.value || "0", 10); } });
+      const b = priceStepper(preset.buying[g], (v) => { preset.buying[g] = v; });
+      const s = priceStepper(preset.selling[g], (v) => { preset.selling[g] = v; });
       const defBuy = def.buying[g], defSell = def.selling[g];
       const cBuy = h("td", { class: "default-price" + (preset.buying[g] !== defBuy ? " diff" : ""),
         title: "Default buy price" }, defBuy);
@@ -1383,7 +1398,8 @@ function renderPricingsTab() {
           onclick: () => exportPresets("pricings", [preset.id], `pricing-${safeFilename(preset.id)}.json`) }, "Export"),
         h("button", { class: "primary", onclick: () => savePricing(preset) }, "Save")),
       h("table", { class: "pricing-grid" },
-        h("thead", null, h("tr", null, h("th", null, "Good"), h("th", null, "Buy"), h("th", null, "Sell"),
+        h("thead", null, h("tr", null, h("th", null, "Good"),
+          h("th", { class: "price-col" }, "Buy"), h("th", { class: "price-col" }, "Sell"),
           h("th", { class: "default-price" }, "Def. Buy"),
           h("th", { class: "default-price" }, "Def. Sell"))),
         h("tbody", null, rows)));
