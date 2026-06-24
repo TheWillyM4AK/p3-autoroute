@@ -642,6 +642,134 @@ function openCaptains() {
   load();
 }
 
+// --------------------------------------------------------------------------
+// Prices — universal reference table + optional live per-town view
+// --------------------------------------------------------------------------
+function priceError(data) {
+  const msg = (data && data.error) || "Couldn't read the game.";
+  return h("div", { class: "prices-msg" },
+    h("p", { class: "error" }, msg),
+    h("p", { class: "hint" },
+      "The live view reads the running Patrician III — open the game with a "
+      + "savegame loaded. (The universal table doesn't need the game.)"));
+}
+
+// Constant per-good reference prices, cheapest → dearest (fixed × base, never change).
+function buildUniversalTable(data) {
+  const trs = data.goods.map((g) => h("tr", null,
+    h("td", { class: "pr-good" }, goodLabel(g.good)),
+    h("td", { class: "pr-floor" }, String(g.floor)),
+    h("td", { class: "pr-base" }, String(g.base)),
+    h("td", { class: "pr-sell" }, String(g.sell2wk)),
+    h("td", { class: "pr-buy" }, String(g.buy2wk)),
+    h("td", { class: "pr-sell" }, String(g.sell1wk)),
+    h("td", { class: "pr-ceiling" }, String(g.ceiling))));
+  return h("table", { class: "prices-table" },
+    h("thead", null, h("tr", null,
+      h("th", null, "Good"),
+      h("th", { title: "Cheapest you'll ever pay — a deep-glut town (0.6× base)" }, "Floor"),
+      h("th", { title: "3-week pivot: buy = sell = base (1.0×). Buy at/below it; sell down to it to clear stock" }, "Base (3wk)"),
+      h("th", { title: "Sell down to the 2-week satisfaction cap (1.2× base) — the default" }, "Sell 2wk"),
+      h("th", { title: "Aggressive buy cap (1.25× base) — drains a town to 2 weeks; below that hurts its satisfaction" }, "Buy 2wk"),
+      h("th", { title: "Premium sell (1.4× base) — only down to 1 week (cream-skim)" }, "Sell 1wk"),
+      h("th", { title: "Dearest you'll ever get — an empty town (2× base, normal difficulty)" }, "Ceiling"))),
+    h("tbody", null, trs));
+}
+
+// Live per-town quotes for one good, sorted scarce → glut.
+function buildTownTable(g) {
+  const rows = g.towns.slice().sort((a, b) => b.sell - a.sell);  // dearest (scarcest) first
+  const trs = rows.map((t) => h("tr", null,
+    h("td", { class: "pr-town" },
+      t.produces ? [t.town, h("span", { class: "pr-prod", title: "Produced here" }, " 🏭")] : t.town),
+    h("td", { class: "pr-weeks" }, t.weeks == null ? "∞" : String(t.weeks)),
+    h("td", { class: "pr-buy" }, t.buy == null ? "—" : String(t.buy)),
+    h("td", { class: "pr-sell" }, String(t.sell))));
+  return h("table", { class: "prices-table" },
+    h("thead", null, h("tr", null,
+      h("th", null, "Town"),
+      h("th", { title: "Weeks of supply vs the price thresholds — 3 ≈ base price; low = scarce (sell), high = glut (buy)" }, "Supply"),
+      h("th", { title: "Price to buy one load here" }, "Buy"),
+      h("th", { title: "Price you get selling one load here" }, "Sell"))),
+    h("tbody", null, trs));
+}
+
+function openPrices() {
+  let mode = "table";   // "table" | "live"
+  let liveData = null;  // cached live response
+  let liveGood = 0;     // selected good index in the live view
+
+  const diffSel = h("select", null,
+    h("option", { value: "0" }, "Easy"),
+    h("option", { value: "1", selected: true }, "Normal"),
+    h("option", { value: "2" }, "Hard"));
+  const tabTable = h("button", { class: "active" }, "Universal");
+  const tabLive = h("button", null, "By town (live)");
+  const goodSel = h("select", { class: "pr-goodsel" });
+  const goodWrap = h("label", { class: "hint", style: "display:none" }, "Good: ", goodSel);
+  const diffWrap = h("label", { class: "hint", style: "display:none" }, "Difficulty: ", diffSel);
+  const note = h("p", { class: "prices-summary" });
+  const body = h("div", { class: "prices-body" });
+
+  const node = h("div", { class: "modal prices-modal" },
+    h("h2", null, "💰 Trade prices"),
+    h("div", { class: "modal-tabs" }, tabTable, tabLive),
+    h("div", { class: "prices-controls" }, diffWrap, goodWrap),
+    note, body);
+  modal(node);
+
+  async function showTable() {
+    goodWrap.style.display = "none";
+    diffWrap.style.display = "none";
+    body.replaceChildren(h("p", { class: "hint" }, "Computing…"));
+    let data;
+    try { data = await api("/api/prices/table", {}); }
+    catch (e) { data = { ok: false, error: "Unexpected error: " + e }; }
+    note.textContent = "Gold per barrel/bundle — constant reference prices (fixed × base, never change), "
+      + "left→right cheapest→dearest. Base = the 3-week pivot where buy = sell.";
+    body.replaceChildren(data && data.ok ? buildUniversalTable(data) : priceError(data));
+  }
+
+  function renderLive() {
+    if (!liveData || !liveData.ok) return;
+    liveGood = Number(goodSel.value);
+    const g = liveData.goods[liveGood];
+    const d = liveData.date;
+    note.textContent = `${g.name} — floor ${g.floor} · base ${g.base} · ceiling ${g.ceiling} `
+      + `gold/load · ${d.day} ${MONTHS[d.month]} ${d.year}. Scarce → glut: sell up top, buy at the bottom.`;
+    goodWrap.style.display = "";
+    body.replaceChildren(buildTownTable(g));
+  }
+
+  async function loadLive() {
+    diffWrap.style.display = "";
+    goodWrap.style.display = "none";
+    body.replaceChildren(h("p", { class: "hint" }, "Reading the game…"));
+    try { liveData = await api("/api/prices/live", { difficulty: Number(diffSel.value) }); }
+    catch (e) { liveData = { ok: false, error: "Unexpected error: " + e }; }
+    if (liveData && liveData.ok) {
+      goodSel.replaceChildren(...liveData.goods.map((g, i) => h("option", { value: String(i) }, g.name)));
+      goodSel.value = String(Math.min(liveGood, liveData.goods.length - 1));
+      renderLive();
+    } else {
+      note.textContent = "";
+      body.replaceChildren(priceError(liveData));
+    }
+  }
+
+  function setMode(m) {
+    mode = m;
+    tabTable.classList.toggle("active", m === "table");
+    tabLive.classList.toggle("active", m === "live");
+    if (m === "table") showTable(); else loadLive();
+  }
+  tabTable.addEventListener("click", () => setMode("table"));
+  tabLive.addEventListener("click", () => setMode("live"));
+  goodSel.addEventListener("change", renderLive);
+  diffSel.addEventListener("change", () => setMode(mode));
+  setMode("table");
+}
+
 function openTemplates() {
   let current = GENERATORS[0];
   const body = h("div");
@@ -947,6 +1075,7 @@ async function init() {
   $("#save-route").addEventListener("click", saveRoute);
   $("#templates-btn").addEventListener("click", openTemplates);
   $("#captains-btn").addEventListener("click", openCaptains);
+  $("#prices-btn").addEventListener("click", openPrices);
   setStatus("Ready. Open your game's Save\\AutoRoute folder.");
 
   // Remember the last opened folder and reopen it automatically.

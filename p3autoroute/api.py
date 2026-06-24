@@ -55,6 +55,17 @@ class Api:
         from . import captains
         return captains.locate()
 
+    # --------------------------------------------------------------- prices
+    def prices_table(self, params=None) -> dict:
+        """Recommended buy/sell price thresholds per good (route-rule reference)."""
+        from . import pricing
+        return pricing.universal_table()
+
+    def prices_live(self, params=None) -> dict:
+        """Live buy/sell prices per good/town (reads the running game's RAM)."""
+        from . import prices
+        return prices.read(params)
+
     # --------------------------------------------------------------- folder
     def pick_folder(self, params=None) -> dict:
         """Open the native folder picker (desktop mode only)."""
@@ -184,7 +195,7 @@ class Api:
 
 # Methods exposed by name (for the web server dispatch).
 PUBLIC_METHODS = [
-    "meta", "settings", "captains_locate", "pick_folder", "folder_open",
+    "meta", "settings", "captains_locate", "prices_table", "prices_live", "pick_folder", "folder_open",
     "route_load", "route_save", "route_create", "route_delete",
     "route_rename", "route_duplicate",
     "stop_new", "stop_apply_pricing", "stop_apply_sorting", "generate",

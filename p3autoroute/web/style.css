@@ -280,3 +280,30 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 .skill-fill { display: block; height: 100%; background: var(--withdraw); }
 .skill-num { font-variant-numeric: tabular-nums; color: var(--muted); }
 .captains-empty { margin: 10px 0 0; }
+
+/* Prices modal ---------------------------------------------------------- */
+#prices-btn { margin-left: 4px; }
+.prices-body { min-height: 60px; }
+.prices-msg .error { color: var(--danger); font-weight: 600; }
+.prices-msg .hint { color: var(--muted); font-size: 13px; }
+.prices-summary { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.prices-controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 0 0 10px; }
+.prices-modal .modal-tabs button.active {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+}
+.prices-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.prices-table th, .prices-table td {
+  padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: left;
+}
+.prices-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.prices-table td { font-variant-numeric: tabular-nums; }
+.prices-table .pr-good, .prices-table .pr-town {
+  font-weight: 600; white-space: nowrap; font-variant-numeric: normal;
+}
+.prices-table .pr-good .good-icon { vertical-align: middle; margin-right: 6px; }
+.prices-table .pr-buy, .prices-table .pr-floor { color: var(--buy); }
+.prices-table .pr-sell, .prices-table .pr-ceiling { color: var(--sell); }
+.prices-table .pr-base { font-weight: 600; }
+.prices-table .pr-weeks { color: var(--muted); }
+.prices-table .pr-where { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+.pr-prod { opacity: .75; }
