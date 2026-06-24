@@ -137,8 +137,11 @@ def test_production_buy_sell_model():
                 assert production.demands(t, gid)
             else:
                 assert not production.demands(t, gid)
-    # Spot check: Grain is produced in Hamburg (8) and demanded in Cologne (5).
-    assert production.produces(8, grain) and production.demands(5, grain)
+    # Spot check: Grain is produced in Hamburg (8) and Luebeck (9) — Luebeck
+    # being the case the live-data rebuild fixed — and demanded in Bergen (11),
+    # which produces no grain.
+    assert production.produces(8, grain) and production.produces(9, grain)
+    assert production.demands(11, grain) and not production.produces(11, grain)
 
 
 def test_good_icons_exist_on_disk():
