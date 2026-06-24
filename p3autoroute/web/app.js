@@ -855,6 +855,29 @@ function openTradeGood() {
 }
 
 // --------------------------------------------------------------------------
+// Apply pricing — reprice every Buy/Sell rule across the whole route
+// --------------------------------------------------------------------------
+// The per-stop "Apply pricing…" select only touches the stop being edited; this
+// does the same across every dockable stop at once, using the default pricing
+// template (the one marked ★). Trade modes and quantities are left untouched —
+// only the prices of rules already set to Buy/Sell change, Buy taking the
+// template's buy price and Sell its sell price.
+function applyRoutePricing() {
+  if (!state.route) { setStatus("Open a route first."); return; }
+  const p = defaultPricing();
+  if (!p) { setStatus("No pricing template set — create one in the Pricings tab."); return; }
+  const dockStops = state.route.stops.filter((s) => s.mode === 0);
+  let n = 0;
+  dockStops.forEach((s) => s.rules.forEach((r) => {
+    if (r.mode === 1) { r.price = p.buying[r.good]; n++; }
+    else if (r.mode === 2) { r.price = p.selling[r.good]; n++; }
+  }));
+  if (!n) { setStatus("No Buy/Sell rules to reprice — use “Trade a good…” first."); return; }
+  setStatus(`Repriced ${n} rule(s) across ${dockStops.length} stop(s) with "${p.id || "default"}" — remember to Save`);
+  renderEditor();
+}
+
+// --------------------------------------------------------------------------
 // Prices — universal reference table + optional live per-town view
 // --------------------------------------------------------------------------
 const MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -1460,6 +1483,7 @@ async function init() {
   $("#add-stop").addEventListener("click", addStop);
   $("#save-route").addEventListener("click", saveRoute);
   $("#trade-good-btn").addEventListener("click", openTradeGood);
+  $("#apply-pricing-btn").addEventListener("click", applyRoutePricing);
   $("#templates-btn").addEventListener("click", openTemplates);
   $("#prices-btn").addEventListener("click", openPrices);
   setStatus("Ready. Open your game's Save\\AutoRoute folder.");
