@@ -574,10 +574,12 @@ function renderStopEditor() {
           // The 4 trade modes (Buy/Sell/Withdraw/Deposit) reset the amount to
           // the "maximum" sentinel (-1)...
           rule.quantity = -1; qtyInp.value = -1;
-          // ...and Buy/Sell also auto-fill the matching default price, whatever
-          // the previous mode was.
+          // ...and set the price: Buy/Sell auto-fill the matching default,
+          // while Withdraw/Deposit carry no price and reset it to 0 (a nonzero
+          // price there would be re-read as Buy/Sell on save — see rou.py).
           const ap = autoPriceFor(rule.good, rule.mode);
-          if (ap != null) { rule.price = ap; priceInp.value = ap; }
+          rule.price = ap != null ? ap : 0;
+          priceInp.value = rule.price;
         }
       },
     }, RULE_MODES.map((n, idx) => h("option", { value: idx, class: "mode-opt-" + idx, selected: idx === rule.mode }, n)));
