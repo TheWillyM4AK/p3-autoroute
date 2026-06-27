@@ -281,6 +281,8 @@ def read(params=None) -> dict:
                 "floor": round(per * pricing.BUY_FLOOR),
                 "ceiling": round(per * pricing.SELL_DIFFICULTY[difficulty]),
                 "basePerBarrel": round(per, 1),
+                "prodCost": (pricing.PRODUCTION_COST[g] or (None, None))[0],
+                "prodCostWinter": (pricing.PRODUCTION_COST[g] or (None, None))[1],
                 # Real-world counterparts to the universal columns: median across
                 # towns of the price at 1/2/3 weeks of supply. ``None`` when no
                 # town gives a usable figure (e.g. a good held in huge bulk like

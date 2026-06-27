@@ -216,6 +216,33 @@ class Api:
         PricingStore().set_default(params["id"])
         return {"ok": True}
 
+    def pricings_set_price(self, params: dict) -> dict:
+        """Set the buy or sell price of one good in the default pricing preset.
+
+        Backs the "click a price in the live Range chart to fix it" action.
+        ``params`` = {"good": int, "side": "buy"|"sell", "price": int}.
+        """
+        store = PricingStore()
+        preset = store.get_default()
+        if preset is None:
+            return {"ok": False, "error": "No pricing preset to update."}
+        try:
+            good = int(params["good"])
+            price = max(0, int(params["price"]))
+        except (KeyError, TypeError, ValueError):
+            return {"ok": False, "error": "Bad good or price."}
+        if not (0 <= good < goods.COUNT):
+            return {"ok": False, "error": "Good out of range."}
+        side = params.get("side")
+        if side == "buy":
+            preset.buying[good] = price
+        elif side == "sell":
+            preset.selling[good] = price
+        else:
+            return {"ok": False, "error": "side must be 'buy' or 'sell'."}
+        store.upsert(preset)
+        return {"ok": True, "id": preset.id, "good": good, "side": side, "price": price}
+
     def pricings_rename(self, params: dict) -> dict:
         PricingStore().rename(params["old"], params["new"])
         return {"ok": True}
@@ -259,7 +286,7 @@ PUBLIC_METHODS = [
     "route_load", "route_save", "route_create", "route_delete",
     "route_rename", "route_duplicate",
     "stop_new", "stop_apply_pricing", "stop_apply_sorting", "generate",
-    "pricings", "pricings_save", "pricings_delete", "pricings_setdefault", "pricings_rename",
+    "pricings", "pricings_save", "pricings_delete", "pricings_setdefault", "pricings_set_price", "pricings_rename",
     "pricings_export", "pricings_import",
     "sortings", "sortings_save", "sortings_delete", "sortings_setdefault", "sortings_rename",
     "sortings_export", "sortings_import",
