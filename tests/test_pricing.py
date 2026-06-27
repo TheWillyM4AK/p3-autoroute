@@ -108,6 +108,14 @@ def test_universal_table():
     assert beer["sell2wk"] <= beer["sell1_5wk"] <= beer["sell1wk"]
     assert beer["sell1wk"] == round(per * 1.4)    # 1-week premium sell
     assert beer["ceiling"] == round(per * 2.0)    # empty-town ceiling (dearest, normal)
+    # value density = base price per barrel of hold space (size / BARREL barrels);
+    # Beer ships in barrels (1 per load), so it equals the per-load base price.
+    assert beer["density"] == round(per / (goods.SIZES[goods.Good.BEER] / goods.BARREL))
+    meat = next(x for x in t["goods"] if x["name"] == "Meat")  # a bundle (10 barrels)
+    assert meat["density"] == round(meat["base"] / 10)  # diluted vs its per-load price
+    # densest good is Skins (a high-value barrel), least dense is Timber (a cheap bundle)
+    densest = max(t["goods"], key=lambda x: x["density"])
+    assert densest["name"] == "Skins"
     # the columns are ordered cheapest -> dearest (buy3wk == base, the pivot)
     assert beer["floor"] < beer["base"] < beer["sell2wk"] < beer["buy2wk"] < beer["sell1wk"] < beer["ceiling"]
     # only the ceiling varies with difficulty (easy 2.2x / hard 1.8x)
