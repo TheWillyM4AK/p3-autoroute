@@ -21,6 +21,7 @@
   --danger:     #AF3029; /* red-600    — sello de cera         */
   --row-alt:    #E6E4D9; /* base-100   — fila alterna / hover  */
   --glow:       #F9AE77; /* orange-200 — halo de selección     */
+  --den-bar:    rgba(142,107,1,.20); /* latón translúcido — barra de densidad */
   --shadow: 0 1px 3px rgba(16,15,15,.10);
 }
 
@@ -41,6 +42,7 @@
   --danger:     #D14D41; /* red-400                            */
   --row-alt:    #282726; /* base-900                           */
   --glow:       #9D4310; /* orange-700 — halo de selección     */
+  --den-bar:    rgba(208,162,21,.26); /* ámbar translúcido — barra de densidad */
   --shadow: 0 1px 3px rgba(16,15,15,.5);
 }
 
@@ -327,7 +329,13 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 
 /* Prices modal ---------------------------------------------------------- */
 #prices-btn { margin-left: 4px; }
-.prices-body { min-height: 60px; }
+.prices-body { min-height: 60px; overflow-x: auto; }
+/* The reference table has many columns; give the whole modal room so all three
+   sub-tabs share one width (overflow-x above is the safety net on narrow screens). */
+.modal.prices-modal { width: min(1080px, 96vw); }
+/* "Mis precios" top bar: preset picker + actions, matching the controls row. */
+.prices-editbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
+.prices-editbar .spacer { flex: 1; }
 .prices-msg .error { color: var(--danger); font-weight: 600; }
 .prices-msg .hint { color: var(--muted); font-size: 13px; }
 .prices-summary { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
@@ -348,6 +356,14 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 .prices-table .pr-buy { color: var(--buy); }
 .prices-table .pr-sell { color: var(--sell); }
 .prices-table .pr-base { font-weight: 600; }
+/* Value density — a data bar (gold per barrel of hold space); width ∝ density. */
+.prices-table .pr-density {
+  font-weight: 600;
+  background: linear-gradient(90deg, var(--den-bar) var(--den, 0%),
+    transparent var(--den, 0%)) no-repeat;
+  background-size: 100% 70%;
+  background-position: 0 center;
+}
 /* Floor / Base / Ceiling are the neutral anchors of the scale. */
 .prices-table .pr-floor, .prices-table .pr-ceiling { color: var(--muted); }
 /* Dual cell: theoretical value (faint, on top) over the live value (bold, coloured). */

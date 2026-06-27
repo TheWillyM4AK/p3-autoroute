@@ -172,11 +172,16 @@ BUILDING_MATERIALS = frozenset({11, 12, 15, 17, 19})
 def universal_table(difficulty=DIFFICULTY_NORMAL):
     """Constant per-good reference prices for setting route rules.
 
-    Returns ``{"ok": True, "goods": [{"good", "name", "approx", "floor", "buy3wk",
-    "buy2wk", "base", "sell2wk", "sell1wk", "ceiling"}]}`` in gold per barrel/bundle
-    — fixed multiples of each good's base price. Ordered cheapest → dearest, they
-    trace the good's whole price range:
+    Returns ``{"ok": True, "goods": [{"good", "name", "approx", "density", "floor",
+    "buy3wk", "buy2wk", "base", "sell2wk", "sell1wk", "ceiling"}]}``. The price
+    columns are in gold per barrel/bundle (per *load*) — fixed multiples of each
+    good's base price. Ordered cheapest → dearest, they trace the good's whole
+    price range:
 
+    - ``density`` (gold per *barrel of hold space*): the base price divided by the
+      load's volume in barrels (``goods.SIZES / BARREL`` — a bundle is 10 barrels).
+      Higher means more value carried per unit of cargo space, regardless of
+      whether the good ships in barrels or bundles.
     - ``floor`` (0.6×): the cheapest you'll ever pay — a deep-glut town.
     - ``buy3wk`` (1.0×): buying at the 3-week pivot ≈ base.
     - ``buy2_5wk`` (1.125×): buying down to 2.5 weeks (between the pivot and the cap).
@@ -201,10 +206,16 @@ def universal_table(difficulty=DIFFICULTY_NORMAL):
         if base is None:
             continue
         per = base * goods.SIZES[g]
+        # Value density: base price per *barrel of hold space*. A good shipped in
+        # barrels occupies 1 barrel per load, a bundle 10 (goods.SIZES / BARREL),
+        # so per / volume_in_barrels measures how much gold each barrel of cargo
+        # is worth — the dearest goods per unit of hold space rank highest.
+        volume_barrels = goods.SIZES[g] / goods.BARREL
         out.append({
             "good": g,
             "name": goods.NAMES[g],
             "approx": g in BUILDING_MATERIALS,
+            "density": round(per / volume_barrels),
             "floor": round(per * BUY_FLOOR),
             "buy3wk": round(per * BASE_FACTOR),
             "buy2_5wk": round(per * BUY_2_5WK_FACTOR),
