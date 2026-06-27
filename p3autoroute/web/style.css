@@ -375,6 +375,74 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 .prices-table .pr-where { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
 .pr-prod { opacity: .75; }
 
+/* Range chart (third prices tab): two independent axes, a dot per town,
+   theoretical anchors above the axis and the live per-week medians below it. */
+.pr-range { padding-top: 4px; }
+.pr-lane-title { font-size: 12px; font-weight: 600; margin: 22px 0 16px; }
+.pr-lane-title.sell { color: var(--sell); }
+.pr-lane-title.buy { color: var(--buy); }
+.pr-lane { position: relative; height: 164px; }
+.pr-band {
+  position: absolute; top: 56px; height: 48px;
+  background: var(--muted); opacity: .15; border-radius: 6px; pointer-events: none;
+}
+.pr-anchor {
+  position: absolute; top: 54px; height: 52px; width: 1px;
+  background: var(--muted); opacity: .55; transform: translateX(-50%);
+}
+.pr-anchor.cost { background: var(--deposit); opacity: .8; }
+.pr-anchor-label {
+  position: absolute; transform: translateX(-50%); text-align: center;
+  font-size: 10px; line-height: 1.05; color: var(--muted); white-space: nowrap;
+}
+.pr-anchor-label b { color: var(--ink); font-weight: 600; }
+.pr-anchor-label.cost b { color: var(--deposit); }
+.pr-dot {
+  position: absolute; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--panel); border: 1.5px solid var(--muted);
+  transform: translateX(-50%); cursor: default;
+}
+.pr-dot.prod { background: var(--buy); border-color: var(--buy); }
+.pr-dot.out { opacity: .5; }
+.pr-axis { position: absolute; left: 0; right: 0; top: 106px; height: 1px; background: var(--line); }
+.pr-tick { position: absolute; top: 100px; height: 12px; width: 1.5px; transform: translateX(-50%); }
+.pr-tick.sell { background: var(--sell); }
+.pr-tick.buy { background: var(--withdraw); }
+.pr-tick-label {
+  position: absolute; transform: translateX(-50%); text-align: center;
+  font-size: 10px; line-height: 1.05; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.pr-tick-label.sell { color: var(--sell); }
+.pr-tick-label.buy { color: var(--withdraw); }
+.pr-tick-label b { font-weight: 600; }
+.pr-clip { position: absolute; top: 56px; height: 48px; width: 26px; pointer-events: none; }
+.pr-clip.r { right: 0; background: linear-gradient(to right, transparent, var(--panel)); }
+.pr-clip.l { left: 0; background: linear-gradient(to left, transparent, var(--panel)); }
+.pr-out { position: absolute; top: 148px; font-size: 10px; color: var(--danger); }
+.pr-out.r { right: 0; }
+.pr-out.l { left: 0; }
+
+/* Interactive cursor: vertical bar + price readout + directional captured-range
+   shade. Click writes the price into the default pricing preset. */
+.pr-lane { cursor: crosshair; }
+.pr-cursor {
+  position: absolute; top: 52px; height: 56px; width: 1.5px;
+  background: var(--ink); transform: translateX(-50%); pointer-events: none; display: none;
+}
+.pr-cursor-price {
+  position: absolute; top: 38px; transform: translateX(-50%); pointer-events: none; display: none;
+  background: var(--ink); color: var(--panel); font-size: 10px; font-weight: 600;
+  padding: 1px 6px; border-radius: 4px; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.pr-cursor-shade { position: absolute; top: 56px; height: 48px; pointer-events: none; display: none; border-radius: 4px; }
+.pr-cursor-shade.buy { background: var(--withdraw); opacity: .18; }
+.pr-cursor-shade.sell { background: var(--sell); opacity: .18; }
+.pr-saved-toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 1000;
+  background: var(--buy); color: var(--panel); font-size: 13px; font-weight: 600;
+  padding: 8px 16px; border-radius: 8px; box-shadow: var(--shadow);
+}
+
 /* Ships modal ----------------------------------------------------------- */
 #ships-btn { margin-left: 4px; }
 .ships-body { display: flex; flex-direction: column; gap: 12px; }

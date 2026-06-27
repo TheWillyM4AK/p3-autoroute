@@ -1039,11 +1039,143 @@ function buildTownTable(g) {
     h("tbody", null, trs));
 }
 
+// Persist a price clicked in the Range chart into the default pricing preset and
+// flash a confirmation toast.
+async function setRangePrice(good, side, price) {
+  let res;
+  try { res = await api("/api/pricings/set_price", { good, side, price }); }
+  catch (e) { res = null; }
+  if (!res || !res.ok) return;
+  reloadPricings();  // keep the Pricings tab's state in sync (fire-and-forget)
+  const t = h("div", { class: "pr-saved-toast" },
+    `✓ ${META.goods.names[good]} · ${side === "buy" ? "compra" : "venta"} → ${price.toLocaleString("es-ES")}`);
+  document.body.append(t);
+  setTimeout(() => t.remove(), 1600);
+}
+
+// Live price-range chart for one good: two stacked lanes (buy on top, sell
+// below), each city a dot (green = producer). Both lanes share ONE axis centred
+// on the base price — base sits at 50% and lines up vertically between the lanes,
+// so the left half is "cheap, where you buy" and the right half "dear, where you
+// sell". The axis is symmetric around base out to the ceiling (or a higher winter
+// cost); anything past it (an empty town's buy price, ~4× base) is clamped to the
+// edge and flagged "fuera de escala". Same /api/prices/live payload as the
+// by-town table — no extra backend call.
+function buildRangeChart(g) {
+  const fmt = (n) => Math.round(n).toLocaleString("es-ES");
+  const per = g.base;
+  // Shared axis from the floor (cheapest, hard left) to the ceiling — or a higher
+  // winter cost — (dearest, hard right), so there's no wasted empty span. Same
+  // scale in both lanes, so the base lines up vertically. Prices outside this
+  // range (an empty town's buy ~4× base) are clamped to the edge and flagged with
+  // a fade so the wide near-empty tail doesn't squash everything.
+  const axMin = g.floor;
+  const axMax = Math.max(g.ceiling, g.prodCost || 0, g.prodCostWinter || 0);
+  const X = (v) => Math.max(0, Math.min(100, (v - axMin) / (axMax - axMin) * 100));
+  const inRange = (v) => v != null && v >= axMin && v <= axMax;
+
+  function lane(isSell) {
+    const lk = isSell ? "sell" : "buy";
+    const wrap = h("div", { class: "pr-lane" });
+    const vals = g.towns.map((t) => (isSell ? t.sell : t.buy)).filter((v) => v != null);
+    if (!vals.length) return wrap;
+    const minV = Math.min(...vals), maxV = Math.max(...vals);
+    let anchors, live;
+    if (isSell) {
+      anchors = [[per, "base"], [g.ceiling, "techo"]];
+      // Live medians at N weeks of supply (same numbers as the Universal tab).
+      live = [[g.sell2wk, "2s"], [g.sell1_5wk, "1.5s"], [g.sell1wk, "1s"]];
+    } else {
+      anchors = [[g.floor, "suelo"], [per, "base"]];
+      // Theoretical cost to make it yourself: one latón mark per season.
+      if (g.prodCost != null) anchors.push([g.prodCost, "coste", "cost"]);
+      if (g.prodCostWinter != null) anchors.push([g.prodCostWinter, "inv", "cost"]);
+      live = [[g.buy3wk, "3s"], [g.buy2_5wk, "2.5s"], [g.buy2wk, "2s"]];
+    }
+    const outHi = vals.filter((v) => v > axMax);
+    const outLo = vals.filter((v) => v < axMin);
+    const bandLo = Math.max(minV, axMin), bandHi = Math.min(maxV, axMax);
+    wrap.append(h("div", { class: "pr-band",
+      style: `left:${X(bandLo)}%;width:${X(bandHi) - X(bandLo)}%` }));
+    // Cursor shade (sits under the dots): the captured range, filled toward the
+    // cheap/buy side (left) or the dear/sell side (right).
+    const shade = h("div", { class: "pr-cursor-shade " + lk });
+    wrap.append(shade);
+    // Fade the edge where towns are clamped, so a wide off-scale tail reads as cut.
+    if (outHi.length) wrap.append(h("div", { class: "pr-clip r" }));
+    if (outLo.length) wrap.append(h("div", { class: "pr-clip l" }));
+    // Two fixed rows of anchors: structural marks (suelo/base/techo) on the top
+    // row, the production-cost marks (verano + invierno) on a second row.
+    anchors.filter(([v]) => inRange(v)).forEach(([v, n, cls]) => {
+      const top = cls === "cost" ? 28 : 2;
+      wrap.append(h("div", { class: "pr-anchor" + (cls ? " " + cls : ""), style: `left:${X(v)}%` }));
+      wrap.append(h("div", { class: "pr-anchor-label" + (cls ? " " + cls : ""),
+        style: `left:${X(v)}%;top:${top}px` }, n, h("br"), h("b", null, fmt(v))));
+    });
+    const pts = g.towns
+      .map((t) => ({ town: t.town, v: isSell ? t.sell : t.buy, w: t.weeks, p: t.produces }))
+      .filter((o) => o.v != null).sort((a, b) => a.v - b.v);
+    let lastX = -99, row = 0;
+    for (const o of pts) {
+      const off = o.v > axMax || o.v < axMin;
+      const x = X(o.v);
+      if (x - lastX < 3.4) row = (row + 1) % 4; else row = 0;
+      lastX = x;
+      const wk = o.w == null ? "∞" : (o.w >= 100 ? Math.round(o.w) : o.w.toFixed(1));
+      wrap.append(h("div", {
+        class: "pr-dot" + (o.p ? " prod" : "") + (off ? " out" : ""),
+        style: `left:${x}%;top:${58 + row * 11}px`,
+        title: `${o.town} — ${fmt(o.v)} oro/carga · ${wk} sem`
+          + (o.p ? " · produce" : "") + (off ? " · fuera de escala" : ""),
+      }));
+    }
+    wrap.append(h("div", { class: "pr-axis" }));
+    live.filter(([v]) => inRange(v)).forEach(([v, n]) => {
+      wrap.append(h("div", { class: `pr-tick ${lk}`, style: `left:${X(v)}%` }));
+      wrap.append(h("div", { class: `pr-tick-label ${lk}`, style: `left:${X(v)}%;top:114px`,
+        title: "Precio mediano en vivo a esas semanas de stock" }, n, h("br"), h("b", null, fmt(v))));
+    });
+    if (outHi.length) wrap.append(h("div", { class: "pr-out r" },
+      `${outHi.length} fuera » hasta ${fmt(Math.max(...outHi))}`));
+    if (outLo.length) wrap.append(h("div", { class: "pr-out l" },
+      `« ${outLo.length} fuera desde ${fmt(Math.min(...outLo))}`));
+    // Mouse cursor: a vertical bar + price readout following the pointer, shading
+    // the captured range; a click writes that price into the default preset.
+    const bar = h("div", { class: "pr-cursor" });
+    const tag = h("div", { class: "pr-cursor-price " + lk });
+    wrap.append(bar, tag);
+    const priceAt = (xp) => Math.round(axMin + (xp / 100) * (axMax - axMin));
+    const xOf = (e) => {
+      const r = wrap.getBoundingClientRect();
+      return Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100));
+    };
+    wrap.addEventListener("mousemove", (e) => {
+      const xp = xOf(e);
+      bar.style.left = tag.style.left = xp + "%";
+      tag.textContent = fmt(priceAt(xp));
+      shade.style.left = isSell ? xp + "%" : "0";
+      shade.style.width = (isSell ? 100 - xp : xp) + "%";
+      bar.style.display = tag.style.display = shade.style.display = "block";
+    });
+    wrap.addEventListener("mouseleave", () => {
+      bar.style.display = tag.style.display = shade.style.display = "none";
+    });
+    wrap.addEventListener("click", (e) => setRangePrice(g.good, isSell ? "sell" : "buy", priceAt(xOf(e))));
+    return wrap;
+  }
+  return h("div", { class: "pr-range" },
+    h("div", { class: "pr-lane-title buy" }, "Comprar — pagas (busca a la izquierda) ←"),
+    lane(false),
+    h("div", { class: "pr-lane-title sell" }, "Vender — te pagan (busca a la derecha) →"),
+    lane(true));
+}
+
 function openPrices() {
-  let mode = "table";   // "table" | "live" | "edit"
+  let mode = "table";   // "table" | "live" | "range" | "edit"
   let liveData = null;  // cached live response
   let liveGood = 0;     // selected good index in the live view
   let liveTimer = null; // setInterval handle for auto-refresh
+  let chartHover = false; // mouse over the chart -> pause refresh so the cursor lives
 
   const diffSel = h("select", null,
     h("option", { value: "0" }, "Easy"),
@@ -1052,6 +1184,7 @@ function openPrices() {
   diffSel.value = String(state.difficulty);   // restore the remembered difficulty
   const tabTable = h("button", { class: "active" }, "Universal");
   const tabLive = h("button", null, "By town (live)");
+  const tabRange = h("button", null, "Range (live)");
   const tabEdit = h("button", null, "✏️ Mis precios");
   const goodSel = h("select", { class: "pr-goodsel" });
   const goodWrap = h("label", { class: "hint", style: "display:none" }, "Good: ", goodSel);
@@ -1062,10 +1195,14 @@ function openPrices() {
     autoChk, " Auto (1s)");
   const note = h("p", { class: "prices-summary" });
   const body = h("div", { class: "prices-body" });
+  // Pause the 1 s auto-refresh while the pointer is over the chart, so a re-render
+  // doesn't wipe the interactive cursor the user is reading/aiming with.
+  body.addEventListener("mouseenter", () => { chartHover = true; });
+  body.addEventListener("mouseleave", () => { chartHover = false; });
 
   const node = h("div", { class: "modal prices-modal" },
     h("h2", null, "💰 Trade prices"),
-    h("div", { class: "modal-tabs" }, tabTable, tabLive, tabEdit),
+    h("div", { class: "modal-tabs" }, tabTable, tabLive, tabRange, tabEdit),
     h("div", { class: "prices-controls" }, diffWrap, goodWrap, btnRefresh, autoWrap),
     note, body);
   // Warn before discarding unsaved price edits when closing by click-outside.
@@ -1083,7 +1220,8 @@ function openPrices() {
     if (!autoChk.checked) return;
     liveTimer = setInterval(() => {
       if (!document.body.contains(node)) { stopAuto(); return; }  // modal was closed
-      if (mode === "live" && autoChk.checked) refreshLive(true);
+      if (autoChk.checked && (mode === "live" || mode === "range")
+          && !(mode === "range" && chartHover)) refreshLive(true);
     }, 1000);
   }
 
@@ -1122,6 +1260,19 @@ function openPrices() {
     body.replaceChildren(buildTownTable(g));
   }
 
+  // Same data as renderLive, drawn as the two-axis range chart instead of a table.
+  function renderRange() {
+    if (!liveData || !liveData.ok) return;
+    liveGood = Number(goodSel.value);
+    const g = liveData.goods[liveGood];
+    // The chart labels everything itself, so the text summary is hidden here to
+    // give the dot band more vertical room.
+    note.textContent = "";
+    note.style.display = "none";
+    goodWrap.style.display = "";
+    body.replaceChildren(buildRangeChart(g));
+  }
+
   // ``silent`` (auto-refresh tick): re-read without the "Reading…" flicker, keep
   // the selected good, and on failure keep showing the last good data.
   async function refreshLive(silent) {
@@ -1138,7 +1289,7 @@ function openPrices() {
         goodSel.replaceChildren(...ordered.map(({ g, i }) => h("option", { value: String(i) }, g.name)));
         goodSel.value = String(Math.min(liveGood, d.goods.length - 1));
       }
-      renderLive();
+      (mode === "range" ? renderRange : renderLive)();
     } else if (!silent) {
       note.textContent = "";
       body.replaceChildren(priceError(d));
@@ -1171,21 +1322,24 @@ function openPrices() {
 
   function setMode(m) {
     mode = m;
+    note.style.display = "";   // renderRange hides it; restore for the other tabs
     tabTable.classList.toggle("active", m === "table");
     tabLive.classList.toggle("active", m === "live");
+    tabRange.classList.toggle("active", m === "range");
     tabEdit.classList.toggle("active", m === "edit");
     if (m === "table") showTable();
-    else if (m === "live") loadLive();
-    else showEdit();
+    else if (m === "live" || m === "range") loadLive();
+    else if (m === "edit") showEdit();
   }
   tabTable.addEventListener("click", () => setMode("table"));
   tabLive.addEventListener("click", () => setMode("live"));
+  tabRange.addEventListener("click", () => setMode("range"));
   tabEdit.addEventListener("click", () => setMode("edit"));
   btnRefresh.addEventListener("click", loadLive);
   autoChk.addEventListener("change", () => {
-    if (autoChk.checked && mode === "live") startAuto(); else stopAuto();
+    if (autoChk.checked && (mode === "live" || mode === "range")) startAuto(); else stopAuto();
   });
-  goodSel.addEventListener("change", renderLive);
+  goodSel.addEventListener("change", () => (mode === "range" ? renderRange : renderLive)());
   diffSel.addEventListener("change", () => {
     state.difficulty = Number(diffSel.value);
     api("/api/settings/set", { difficulty: state.difficulty });  // remember it

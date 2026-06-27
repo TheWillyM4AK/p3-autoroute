@@ -50,6 +50,42 @@ BASE_PRICES = [
     None, None, None, None,  # Sword, Bow, Crossbow, Carbine
 ]
 
+# Theoretical cost to PRODUCE one load yourself, in gold/load, as ``(summer,
+# winter)`` — a reference for "is it cheaper to make it than to buy it?".
+# Transcribed verbatim from the community Production Costs table
+# (patrician3.fandom.com/wiki/Production_Costs), which is the in-game formula
+# (wages + 280 gold/week ground tax + raw materials) divided by weekly output at
+# 100% employment. Agriculture produces less in winter (Dec–Feb), so its cost per
+# load rises — those goods carry a distinct winter value; ``winter`` is ``None``
+# when the cost doesn't change with the season. The whole entry is ``None`` where
+# the good isn't produced (Spices is import-only) or has no reliable figure (Whale
+# Oil is bugged in-game; weapons aren't produced here). Fish/Beer are derived from
+# the same formula (the wiki table omits them). These are theoretical references,
+# not a live figure (manufactured goods also vary with the input market price).
+PRODUCTION_COST = [
+    (110, 148),    # Grain   (winter: agriculture −33%)
+    (1080, None),  # Meat
+    (468, None),   # Fish (derived)
+    (40, None),    # Beer (derived)
+    (32, None),    # Salt
+    (105, 210),    # Honey   (winter: apiary −50%)
+    None,          # Spices (import-only — not produced)
+    (210, 420),    # Wine    (winter: vineyard −50%)
+    (243, None),   # Cloth
+    (736, None),   # Skins
+    None,          # Oil / Whale Oil (bugged in-game — joint output with fish)
+    (60, None),    # Timber
+    (275, None),   # Iron Goods
+    (244, None),   # Leather
+    (960, None),   # Wool
+    (61, None),    # Pitch
+    (960, None),   # Pig Iron
+    (440, 880),    # Hemp    (winter: hemp farm −50%)
+    (186, None),   # Pottery
+    (85, None),    # Bricks
+    None, None, None, None,  # Sword, Bow, Crossbow, Carbine
+]
+
 # --- factor tables (P3Modding) ----------------------------------------------
 # Buying: f_i = BUY_M[i] - BUY_V[i] * midpoint/width ; interval 4 is a flat 0.6.
 BUY_M = (4.0, 1.5, 1.0, 0.8)
