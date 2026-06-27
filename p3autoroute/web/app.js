@@ -75,10 +75,17 @@ const state = {
 // --------------------------------------------------------------------------
 // Dialogs
 // --------------------------------------------------------------------------
-function modal(node) {
+function modal(node, onBeforeClose) {
   const backdrop = h("div", { class: "backdrop" }, node);
-  backdrop.addEventListener("mousedown", (ev) => { if (ev.target === backdrop) close(); });
   function close() { backdrop.remove(); }
+  // Click-outside closes, unless onBeforeClose() vetoes it (it may be async, e.g.
+  // an "unsaved changes" confirm). The returned close() bypasses the guard, so
+  // programmatic closers (a dialog's OK button) keep working as before.
+  backdrop.addEventListener("mousedown", async (ev) => {
+    if (ev.target !== backdrop) return;
+    if (onBeforeClose && (await onBeforeClose()) === false) return;
+    close();
+  });
   $("#modal-root").append(backdrop);
   return close;
 }
@@ -152,7 +159,6 @@ function setupTabs() {
       for (const t of document.querySelectorAll("main .tab")) t.classList.add("hidden");
       $("#tab-" + b.dataset.tab).classList.remove("hidden");
       if (b.dataset.tab === "sortings") renderSortingsTab();
-      if (b.dataset.tab === "pricings") renderPricingsTab();
     });
   });
 }
@@ -295,6 +301,7 @@ async function duplicateRoute(name) {
   const res = await api("/api/route/duplicate", { path: state.folder, name, new: nn });
   if (!res.ok) { setStatus("Error: " + res.error); return; }
   await refreshFolder();
+  loadRoute(nn);
 }
 
 async function deleteRoute(name) {
@@ -311,6 +318,22 @@ async function deleteRoute(name) {
 // --------------------------------------------------------------------------
 function defaultSorting() {
   return state.sortings.find((s) => s.is_default) || state.sortings[0];
+}
+
+// The order every goods-keyed view lists goods in: the user's default sorting,
+// so the Prices modal's three tabs ("Universal", "By town (live)", "Mis precios")
+// all agree. Falls back to the natural good-id order when no sorting exists.
+function goodsOrder() {
+  return defaultSorting() ? defaultSorting().goods : [...Array(META.goods.count).keys()];
+}
+
+// Sort a copy of `rows` by goodsOrder(); `keyFn` extracts each row's good id.
+// Rows whose good isn't in the order keep their relative position at the end.
+function byGoodsOrder(rows, keyFn) {
+  const order = goodsOrder();
+  const rank = new Map(order.map((g, i) => [g, i]));
+  const at = (x) => (rank.has(keyFn(x)) ? rank.get(keyFn(x)) : order.length);
+  return rows.slice().sort((a, b) => at(a) - at(b));
 }
 
 // The pricing whose buy/sell prices auto-fill a rule when its mode is set to
@@ -953,7 +976,9 @@ function buildUniversalTable(data, liveMap) {
   const dual = (theo, live, cls) => h("td", { class: "pr-dual" },
     h("div", { class: "t-val" }, fmt(theo)),
     h("div", { class: "l-val " + cls }, fmt(live)));
-  const trs = data.goods.map((g) => {
+  // Value density bar — width relative to the densest good (Skins).
+  const maxDen = Math.max(1, ...data.goods.map((g) => g.density || 0));
+  const trs = byGoodsOrder(data.goods, (g) => g.good).map((g) => {
     const lv = liveMap ? liveMap[g.good] : null;
     return h("tr", null,
       h("td", { class: "pr-good" }, g.approx
@@ -961,6 +986,11 @@ function buildUniversalTable(data, liveMap) {
             title: "Material de construcción: el precio real a N semanas difiere del teórico "
               + "(bono aditivo). Fíjate en el valor en vivo (abajo) de las columnas dobles." }, " *")]
         : goodLabel(g.good)),
+      h("td", { class: "pr-density",
+        style: `--den:${Math.round(100 * (g.density || 0) / maxDen)}%`,
+        title: "Densidad de valor = precio base ÷ volumen en bodega. Oro por barril "
+          + "(un fardo ocupa 10 barriles). Más alto = rinde más por espacio de carga." },
+        String(g.density)),
       h("td", { class: "pr-floor" }, String(g.floor)),
       dual(g.buy3wk, lv && lv.buy3wk, "buy"),
       dual(g.buy2_5wk, lv && lv.buy2_5wk, "buy"),
@@ -976,6 +1006,9 @@ function buildUniversalTable(data, liveMap) {
   return h("table", { class: "prices-table" },
     h("thead", null, h("tr", null,
       h("th", null, "Good"),
+      h("th", { title: "Densidad de valor: precio base ÷ volumen que ocupa en bodega. "
+        + "Oro por barril (un fardo = 10 barriles). Alto = más valor por espacio de carga." },
+        "Valor/barril"),
       h("th", { title: "Cheapest you'll ever pay — a deep-glut town (0.6× base)" }, "Floor"),
       h("th", { title: dualTitle("Compra al pivote de 3 semanas (teórico ≈ base).") }, "Buy 3wk"),
       h("th", { title: dualTitle("Compra drenando a 2,5 semanas (teórico 1,125× base, entre el pivote y la compra agresiva).") }, "Buy 2.5wk"),
@@ -1138,7 +1171,7 @@ function buildRangeChart(g) {
 }
 
 function openPrices() {
-  let mode = "table";   // "table" | "live" | "range"
+  let mode = "table";   // "table" | "live" | "range" | "edit"
   let liveData = null;  // cached live response
   let liveGood = 0;     // selected good index in the live view
   let liveTimer = null; // setInterval handle for auto-refresh
@@ -1152,6 +1185,7 @@ function openPrices() {
   const tabTable = h("button", { class: "active" }, "Universal");
   const tabLive = h("button", null, "By town (live)");
   const tabRange = h("button", null, "Range (live)");
+  const tabEdit = h("button", null, "✏️ Mis precios");
   const goodSel = h("select", { class: "pr-goodsel" });
   const goodWrap = h("label", { class: "hint", style: "display:none" }, "Good: ", goodSel);
   const diffWrap = h("label", { class: "hint", style: "display:none" }, "Difficulty: ", diffSel);
@@ -1168,10 +1202,17 @@ function openPrices() {
 
   const node = h("div", { class: "modal prices-modal" },
     h("h2", null, "💰 Trade prices"),
-    h("div", { class: "modal-tabs" }, tabTable, tabLive, tabRange),
+    h("div", { class: "modal-tabs" }, tabTable, tabLive, tabRange, tabEdit),
     h("div", { class: "prices-controls" }, diffWrap, goodWrap, btnRefresh, autoWrap),
     note, body);
-  modal(node);
+  // Warn before discarding unsaved price edits when closing by click-outside.
+  modal(node, async () => {
+    if (pricingsDirty &&
+        !(await confirmDialog("Hay cambios sin guardar en los precios. ¿Cerrar igualmente?")))
+      return false;
+    pricingsHost = null;
+    return true;
+  });
 
   function stopAuto() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
   function startAuto() {
@@ -1186,6 +1227,7 @@ function openPrices() {
 
   async function showTable() {
     stopAuto();                         // auto-refresh is only for the live tab
+    pricingsHost = null;
     goodWrap.style.display = "none";
     diffWrap.style.display = "";        // the live "Sell 1wk" column depends on it
     btnRefresh.style.display = "none";
@@ -1198,9 +1240,10 @@ function openPrices() {
     catch (e) { live = null; }
     const liveMap = (live && live.ok)
       ? Object.fromEntries(live.goods.map((g) => [g.good, g])) : null;
-    note.textContent = "Oro por carga (barril/bulto), de barato a caro. Floor · Base · Ceiling son los "
-      + "anclajes fijos de la escala (× base). Las 6 columnas a-N-semanas llevan doble valor: arriba el "
-      + "teórico, abajo el real de tu partida "
+    note.textContent = "Oro por carga (barril/bulto), de barato a caro. Valor/barril es la densidad de "
+      + "valor (precio base ÷ volumen; un fardo = 10 barriles), para comparar qué rinde más por espacio. "
+      + "Floor · Base · Ceiling son los anclajes fijos de la escala (× base). Las 6 columnas a-N-semanas "
+      + "llevan doble valor: arriba el teórico, abajo el real de tu partida "
       + (liveMap ? "(mediana de las ciudades en vivo)." : "(abre el juego para ver el valor en vivo).")
       + " * = material de construcción: ahí teoría y realidad divergen.";
     body.replaceChildren(data && data.ok ? buildUniversalTable(data, liveMap) : priceError(data));
@@ -1240,7 +1283,10 @@ function openPrices() {
     liveData = d;
     if (d && d.ok) {
       if (goodSel.options.length !== d.goods.length) {
-        goodSel.replaceChildren(...d.goods.map((g, i) => h("option", { value: String(i) }, g.name)));
+        // Show goods in the user's sorting order, but keep each option's value as
+        // its index into d.goods so renderLive()'s `liveData.goods[value]` still hits.
+        const ordered = byGoodsOrder(d.goods.map((g, i) => ({ g, i })), (x) => x.g.good);
+        goodSel.replaceChildren(...ordered.map(({ g, i }) => h("option", { value: String(i) }, g.name)));
         goodSel.value = String(Math.min(liveGood, d.goods.length - 1));
       }
       (mode === "range" ? renderRange : renderLive)();
@@ -1251,6 +1297,7 @@ function openPrices() {
   }
 
   async function loadLive() {
+    pricingsHost = null;
     diffWrap.style.display = "";
     goodWrap.style.display = "none";
     btnRefresh.style.display = "";
@@ -1259,17 +1306,35 @@ function openPrices() {
     startAuto();
   }
 
+  // "Mis precios" — the pricing-preset editor, moved into this modal. It reuses
+  // renderPricingsTab() by handing it `body` as its paint host (see pricingsHost).
+  function showEdit() {
+    stopAuto();
+    diffWrap.style.display = "none";
+    goodWrap.style.display = "none";
+    btnRefresh.style.display = "none";
+    autoWrap.style.display = "none";
+    note.textContent = "Fija tu compra/venta por bien. Crea varias plantillas; "
+      + "la marcada con ★ es la que usa «Apply pricing» en las rutas.";
+    pricingsHost = body;
+    renderPricingsTab();
+  }
+
   function setMode(m) {
     mode = m;
     note.style.display = "";   // renderRange hides it; restore for the other tabs
     tabTable.classList.toggle("active", m === "table");
     tabLive.classList.toggle("active", m === "live");
     tabRange.classList.toggle("active", m === "range");
-    if (m === "table") showTable(); else loadLive();
+    tabEdit.classList.toggle("active", m === "edit");
+    if (m === "table") showTable();
+    else if (m === "live" || m === "range") loadLive();
+    else if (m === "edit") showEdit();
   }
   tabTable.addEventListener("click", () => setMode("table"));
   tabLive.addEventListener("click", () => setMode("live"));
   tabRange.addEventListener("click", () => setMode("range"));
+  tabEdit.addEventListener("click", () => setMode("edit"));
   btnRefresh.addEventListener("click", loadLive);
   autoChk.addEventListener("change", () => {
     if (autoChk.checked && (mode === "live" || mode === "range")) startAuto(); else stopAuto();
@@ -1727,6 +1792,11 @@ async function importPresets(kind) {
 // Pricings tab (pricing presets)
 // --------------------------------------------------------------------------
 let selectedPricing = null;
+// The pricing editor now lives inside the Prices modal ("Mis precios" sub-tab),
+// so it paints into a host element the modal hands it (null when not editing),
+// and tracks unsaved edits so closing the modal can warn about losing them.
+let pricingsHost = null;
+let pricingsDirty = false;
 
 async function reloadPricings() { state.pricings = await api("/api/pricings"); }
 
@@ -1748,35 +1818,46 @@ function priceStepper(value, commit) {
 }
 
 function renderPricingsTab() {
-  const root = $("#tab-pricings");
+  const root = pricingsHost;          // set by the Prices modal's "Mis precios" tab
+  if (!root) return;                  // editor is closed — nothing to paint into
   if (!state.pricings.length) reloadPricings().then(() => renderPricingsTab());
   if (selectedPricing && !state.pricings.find((p) => p.id === selectedPricing)) selectedPricing = null;
   if (!selectedPricing && state.pricings[0]) selectedPricing = state.pricings[0].id;
   const preset = state.pricings.find((p) => p.id === selectedPricing);
 
-  const list = h("div", { class: "preset-list" },
-    h("div", { class: "panel-head" }, h("strong", null, "Pricings"),
-      h("button", { onclick: createPricing }, "+ New")),
-    h("ul", null, state.pricings.map((p) => h("li", { class: p.id === selectedPricing ? "selected" : "" },
-      h("span", { class: "pname", onclick: () => { selectedPricing = p.id; renderPricingsTab(); } },
-        p.id, " ", p.is_default ? h("span", { class: "badge" }, "def") : ""),
-      h("button", { class: "icon", title: "Set default", onclick: () => setDefaultPricing(p.id) }, "★"),
-      h("button", { class: "icon", title: "Rename", onclick: () => renamePricing(p.id) }, "✎"),
-      h("button", { class: "icon danger", title: "Delete", onclick: () => deletePricing(p.id) }, "🗑")))),
-    h("div", { class: "preset-io" },
-      h("button", { title: "Import pricings from a .json file", onclick: importPricingsFile }, "Import…"),
-      h("button", { title: "Export every pricing to a .json file",
-        onclick: () => exportPresets("pricings", null, "pricings.json") }, "Export all")));
+  // Preset picker + actions as a top bar — so this sub-tab reads like the others
+  // (controls on top, full-width table below) instead of a sidebar layout.
+  const sel = h("select", { class: "pp-preset" },
+    state.pricings.map((p) => h("option", { value: p.id }, p.id + (p.is_default ? " ★" : ""))));
+  sel.value = selectedPricing || "";
+  sel.addEventListener("change", () => { selectedPricing = sel.value; renderPricingsTab(); });
 
-  let editor;
+  const editbar = h("div", { class: "prices-editbar" },
+    h("label", { class: "hint" }, "Plantilla: ", sel),
+    h("button", { onclick: createPricing, title: "Nueva plantilla" }, "+ New"),
+    h("button", { class: "icon", title: "Renombrar", onclick: () => preset && renamePricing(preset.id) }, "✎"),
+    h("button", { class: "icon danger", title: "Borrar", onclick: () => preset && deletePricing(preset.id) }, "🗑"),
+    h("button", { class: "icon", title: "Marcar como predeterminada (★ — la que usa «Apply pricing»)",
+      onclick: () => preset && setDefaultPricing(preset.id) }, "★"),
+    preset && preset.is_default ? h("span", { class: "badge" }, "def") : "",
+    h("div", { class: "spacer" }),
+    h("button", { title: "Importar plantillas desde un .json", onclick: importPricingsFile }, "Import…"),
+    h("button", { title: "Exportar esta plantilla a un .json",
+      onclick: () => preset && exportPresets("pricings", [preset.id], `pricing-${safeFilename(preset.id)}.json`) }, "Export"),
+    h("button", { title: "Exportar todas las plantillas a un .json",
+      onclick: () => exportPresets("pricings", null, "pricings.json") }, "Export all"),
+    h("button", { class: "primary", title: "Guardar cambios",
+      onclick: () => preset && savePricing(preset) }, "Guardar"));
+
+  let grid;
   if (preset) {
     const def = META.defaultPricing;
-    const order = defaultSorting() ? defaultSorting().goods : [...Array(META.goods.count).keys()];
+    const order = goodsOrder();
     const rows = [];
     for (const g of order) {
       if (!META.goods.visibility[g] && !state.showWeapons) continue;
-      const b = priceStepper(preset.buying[g], (v) => { preset.buying[g] = v; });
-      const s = priceStepper(preset.selling[g], (v) => { preset.selling[g] = v; });
+      const b = priceStepper(preset.buying[g], (v) => { preset.buying[g] = v; pricingsDirty = true; });
+      const s = priceStepper(preset.selling[g], (v) => { preset.selling[g] = v; pricingsDirty = true; });
       const defBuy = def.buying[g], defSell = def.selling[g];
       const cBuy = h("td", { class: "default-price" + (preset.buying[g] !== defBuy ? " diff" : ""),
         title: "Default buy price" }, defBuy);
@@ -1785,23 +1866,17 @@ function renderPricingsTab() {
       rows.push(h("tr", null, h("td", { class: "good-name" }, goodLabel(g)),
         h("td", null, b), h("td", null, s), cBuy, cSell));
     }
-    editor = h("div", { class: "preset-editor" },
-      h("div", { class: "editor-head" }, h("strong", null, "Edit: " + preset.id),
-        h("div", { class: "spacer" }),
-        h("button", { title: "Export this pricing to a .json file",
-          onclick: () => exportPresets("pricings", [preset.id], `pricing-${safeFilename(preset.id)}.json`) }, "Export"),
-        h("button", { class: "primary", onclick: () => savePricing(preset) }, "Save")),
-      h("table", { class: "pricing-grid" },
-        h("thead", null, h("tr", null, h("th", null, "Good"),
-          h("th", { class: "price-col" }, "Buy"), h("th", { class: "price-col" }, "Sell"),
-          h("th", { class: "default-price" }, "Def. Buy"),
-          h("th", { class: "default-price" }, "Def. Sell"))),
-        h("tbody", null, rows)));
+    grid = h("table", { class: "pricing-grid" },
+      h("thead", null, h("tr", null, h("th", null, "Good"),
+        h("th", { class: "price-col" }, "Buy"), h("th", { class: "price-col" }, "Sell"),
+        h("th", { class: "default-price" }, "Def. Buy"),
+        h("th", { class: "default-price" }, "Def. Sell"))),
+      h("tbody", null, rows));
   } else {
-    editor = h("div", { class: "preset-editor" }, h("p", { class: "hint" }, "Select or create a pricing preset."));
+    grid = h("p", { class: "hint" }, "Crea una plantilla para empezar.");
   }
 
-  root.replaceChildren(h("div", { class: "preset-layout" }, list, editor));
+  root.replaceChildren(editbar, grid);
 }
 
 async function createPricing() {
@@ -1812,7 +1887,7 @@ async function createPricing() {
 }
 async function savePricing(preset) {
   await api("/api/pricings/save", { pricing: preset });
-  await reloadPricings(); setStatus(`Pricing "${preset.id}" saved`);
+  await reloadPricings(); pricingsDirty = false; setStatus(`Pricing "${preset.id}" saved`);
 }
 async function setDefaultPricing(id) { await api("/api/pricings/setdefault", { id }); await reloadPricings(); renderPricingsTab(); }
 async function renamePricing(id) {
