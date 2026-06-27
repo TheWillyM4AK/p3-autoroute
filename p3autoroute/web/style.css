@@ -135,6 +135,10 @@ main { padding: 16px; }
 #stop-editor { margin-top: 0; }
 .stop-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
 .stop-toolbar .group { display: flex; gap: 4px; align-items: center; }
+/* The stop title varies in length (stop number + town name); giving it its own
+   full-width line keeps the button groups below pinned to the left edge, so they
+   no longer shift horizontally when navigating quickly between stops. */
+.stop-toolbar .stop-title { flex-basis: 100%; }
 .stop-toolbar label { color: var(--muted); font-size: 12px; }
 
 table.rules { width: 100%; border-collapse: collapse; }

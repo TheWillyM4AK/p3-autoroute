@@ -531,7 +531,7 @@ function renderStopEditor() {
   });
 
   const toolbar = h("div", { class: "stop-toolbar" },
-    h("strong", null, "Stop #" + (state.selectedStop + 1) + " — " + META.towns.names[stop.town]),
+    h("strong", { class: "stop-title" }, "Stop #" + (state.selectedStop + 1) + " — " + META.towns.names[stop.town]),
     h("div", { class: "group" },
       h("button", { onclick: () => navStop(-1) }, "‹ Previous"),
       h("button", { onclick: () => navStop(1) }, "Next ›"),
