@@ -692,6 +692,10 @@ function openTradeGood() {
   const initiallyTraded = new Set(routeTradedGoods().keys());
   const selected = new Set(initiallyTraded);
   const chipByGood = new Map();
+  // Per-good direction override: "auto" (Buy where produced, Sell where consumed),
+  // "buy" (only buy in producing towns), or "sell" (only sell in consuming towns).
+  // Absent good = "auto". Lets the user force a single direction across the route.
+  const goodMode = new Map();
 
   const preview = h("div", { class: "trade-preview" });
   const qtyInp = h("input", { type: "number", min: -1, max: 9999, value: -1, title: "-1 = maximum" });
@@ -705,6 +709,33 @@ function openTradeGood() {
       if (a === "buy") buy++; else if (a === "sell") sell++;
     });
     return { buy, sell };
+  }
+
+  // The action a good takes at a town once its direction override is applied:
+  // "auto" follows production; "buy"/"sell" keep only the matching towns — the
+  // opposite ones fall through to null, so Apply leaves/clears them (does nothing).
+  function effectiveAction(town, good) {
+    const act = tradeActionFor(town, good);
+    const mode = goodMode.get(good) || "auto";
+    if (mode === "buy") return act === "buy" ? "buy" : null;
+    if (mode === "sell") return act === "sell" ? "sell" : null;
+    return act;
+  }
+
+  // A 3-way Auto/Buy/Sell segmented control for one good's direction override.
+  function modeControl(g) {
+    const cur = goodMode.get(g) || "auto";
+    const opts = [
+      ["auto", "Auto", "Buy where the town produces it, Sell where it's consumed"],
+      ["buy", "Buy", "Only buy (in producing towns); do nothing in the rest"],
+      ["sell", "Sell", "Only sell (in consuming towns); do nothing in the rest"],
+    ];
+    return h("div", { class: "tp-mode" }, opts.map(([val, label, title]) => {
+      const b = h("button", { type: "button", title,
+        class: "tp-mode-btn" + (cur === val ? " active" : "") }, label);
+      b.addEventListener("click", () => { goodMode.set(g, val); renderPreview(); });
+      return b;
+    }));
   }
 
   function paintChip(g) {
@@ -743,14 +774,19 @@ function openTradeGood() {
     const rows = [];
     [...selected].sort((a, b) => a - b).forEach((g) => {
       const { buy, sell } = stopCounts(g);
+      const mode = goodMode.get(g) || "auto";
       const parts = [];
-      if (buy) parts.push(h("span", { class: "tp-buy-c" }, `Buy ×${buy}`));
-      if (sell) parts.push(h("span", { class: "tp-sell-c" }, `Sell ×${sell}`));
+      if (mode !== "sell" && buy) parts.push(h("span", { class: "tp-buy-c" }, `Buy ×${buy}`));
+      if (mode !== "buy" && sell) parts.push(h("span", { class: "tp-sell-c" }, `Sell ×${sell}`));
+      const none = mode === "buy" ? "— no town on this route produces it"
+        : mode === "sell" ? "— no town on this route consumes it"
+        : "— no town on this route trades it";
       rows.push(h("tr", { class: initiallyTraded.has(g) ? "" : "tp-added" },
         h("td", { class: "tp-good" }, goodIcon(g), h("span", null, META.goods.names[g])),
         h("td", { class: "tp-act" },
           parts.length ? parts.flatMap((p, idx) => idx ? [", ", p] : [p])
-            : h("span", { class: "tp-none" }, "— no town on this route trades it"))));
+            : h("span", { class: "tp-none" }, none)),
+        h("td", { class: "tp-dir" }, modeControl(g))));
     });
     removed.sort((a, b) => a - b).forEach((g) => {
       let n = 0;
@@ -760,10 +796,12 @@ function openTradeGood() {
       });
       rows.push(h("tr", { class: "tp-removed" },
         h("td", { class: "tp-good" }, goodIcon(g), h("span", null, META.goods.names[g])),
-        h("td", { class: "tp-act" }, h("span", { class: "tp-rm" }, `Remove from ${n} stop(s)`))));
+        h("td", { class: "tp-act" }, h("span", { class: "tp-rm" }, `Remove from ${n} stop(s)`)),
+        h("td", { class: "tp-dir" })));
     });
     preview.append(h("table", { class: "trade-table" },
-      h("thead", null, h("tr", null, h("th", null, "Good"), h("th", null, "What happens"))),
+      h("thead", null, h("tr", null,
+        h("th", null, "Good"), h("th", null, "What happens"), h("th", null, "Direction"))),
       h("tbody", null, rows)));
     applyBtn.disabled = false;
   }
@@ -802,8 +840,10 @@ function openTradeGood() {
     h("h2", null, "📦 Start trading a good"),
     h("p", { class: "hint" },
       "Toggle the goods this route should trade. Each one on is set to Buy where "
-      + "its town produces it and Sell where consumed, at its default price. ✓ = will "
-      + "trade, ✕ = will be removed. Apply reconciles every stop in one go."),
+      + "its town produces it and Sell where consumed, at its default price. Use the "
+      + "Direction control below to force a good to only Buy or only Sell across the "
+      + "whole route (towns going the other way are left untouched). ✓ = will trade, "
+      + "✕ = will be removed. Apply reconciles every stop in one go."),
     h("div", { class: "trade-bulk" }, selectAllBtn, clearBtn),
     picker,
     h("div", { class: "dialog-row" },
@@ -823,7 +863,7 @@ function openTradeGood() {
       selected.forEach((g) => {
         const rule = s.rules.find((r) => r.good === g);
         if (!rule) return;
-        const act = tradeActionFor(s.town, g);
+        const act = effectiveAction(s.town, g);
         if (!act) {
           if (rule.mode === 1 || rule.mode === 2) {
             rule.mode = 0; rule.price = 0; rule.quantity = 0; changedStops.add(i);
