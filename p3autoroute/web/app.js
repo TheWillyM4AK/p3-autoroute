@@ -499,8 +499,14 @@ function renderStopEditor() {
         // None clears each rule: price and quantity back to zero.
         r.price = 0; r.quantity = 0;
       } else {
+        // The 4 trade modes reset the amount to the "maximum" sentinel (-1),
+        // and set the price: Buy/Sell auto-fill the matching default, while
+        // Withdraw/Deposit carry no price and must reset it to 0 (a nonzero
+        // price there would be re-read as Buy/Sell on save — see rou.py). This
+        // mirrors the per-rule path.
+        r.quantity = -1;
         const ap = autoPriceFor(r.good, m);
-        if (ap != null) r.price = ap;
+        r.price = ap != null ? ap : 0;
       }
     });
     bulkMode.value = ""; renderStopEditor();
