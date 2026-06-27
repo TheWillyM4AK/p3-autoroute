@@ -319,6 +319,22 @@ function defaultSorting() {
   return state.sortings.find((s) => s.is_default) || state.sortings[0];
 }
 
+// The order every goods-keyed view lists goods in: the user's default sorting,
+// so the Prices modal's three tabs ("Universal", "By town (live)", "Mis precios")
+// all agree. Falls back to the natural good-id order when no sorting exists.
+function goodsOrder() {
+  return defaultSorting() ? defaultSorting().goods : [...Array(META.goods.count).keys()];
+}
+
+// Sort a copy of `rows` by goodsOrder(); `keyFn` extracts each row's good id.
+// Rows whose good isn't in the order keep their relative position at the end.
+function byGoodsOrder(rows, keyFn) {
+  const order = goodsOrder();
+  const rank = new Map(order.map((g, i) => [g, i]));
+  const at = (x) => (rank.has(keyFn(x)) ? rank.get(keyFn(x)) : order.length);
+  return rows.slice().sort((a, b) => at(a) - at(b));
+}
+
 // The pricing whose buy/sell prices auto-fill a rule when its mode is set to
 // Buy/Sell: the user's default preset, falling back to the built-in defaults.
 // Both shapes expose .buying/.selling indexed by good id.
@@ -961,7 +977,7 @@ function buildUniversalTable(data, liveMap) {
     h("div", { class: "l-val " + cls }, fmt(live)));
   // Value density bar — width relative to the densest good (Skins).
   const maxDen = Math.max(1, ...data.goods.map((g) => g.density || 0));
-  const trs = data.goods.map((g) => {
+  const trs = byGoodsOrder(data.goods, (g) => g.good).map((g) => {
     const lv = liveMap ? liveMap[g.good] : null;
     return h("tr", null,
       h("td", { class: "pr-good" }, g.approx
@@ -1115,7 +1131,10 @@ function openPrices() {
     liveData = d;
     if (d && d.ok) {
       if (goodSel.options.length !== d.goods.length) {
-        goodSel.replaceChildren(...d.goods.map((g, i) => h("option", { value: String(i) }, g.name)));
+        // Show goods in the user's sorting order, but keep each option's value as
+        // its index into d.goods so renderLive()'s `liveData.goods[value]` still hits.
+        const ordered = byGoodsOrder(d.goods.map((g, i) => ({ g, i })), (x) => x.g.good);
+        goodSel.replaceChildren(...ordered.map(({ g, i }) => h("option", { value: String(i) }, g.name)));
         goodSel.value = String(Math.min(liveGood, d.goods.length - 1));
       }
       renderLive();
@@ -1678,7 +1697,7 @@ function renderPricingsTab() {
   let grid;
   if (preset) {
     const def = META.defaultPricing;
-    const order = defaultSorting() ? defaultSorting().goods : [...Array(META.goods.count).keys()];
+    const order = goodsOrder();
     const rows = [];
     for (const g of order) {
       if (!META.goods.visibility[g] && !state.showWeapons) continue;
