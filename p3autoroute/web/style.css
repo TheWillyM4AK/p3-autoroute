@@ -308,6 +308,18 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 }
 .trade-table th { color: var(--muted); font-weight: 600; }
 .trade-table .tp-none { color: var(--muted); }
+.trade-table .tp-dir { width: 1%; white-space: nowrap; }
+/* Per-good direction override: a 3-way Auto/Buy/Sell segmented control. */
+.tp-mode { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.tp-mode .tp-mode-btn {
+  border: 0; border-radius: 0; background: transparent; color: var(--muted);
+  font-size: 12px; padding: 2px 8px; cursor: pointer;
+}
+.tp-mode .tp-mode-btn + .tp-mode-btn { border-left: 1px solid var(--line); }
+.tp-mode .tp-mode-btn:hover { background: var(--row-alt); }
+.tp-mode .tp-mode-btn.active {
+  background: var(--accent); color: var(--accent-ink); font-weight: 600;
+}
 
 /* Prices modal ---------------------------------------------------------- */
 #prices-btn { margin-left: 4px; }
