@@ -301,6 +301,7 @@ async function duplicateRoute(name) {
   const res = await api("/api/route/duplicate", { path: state.folder, name, new: nn });
   if (!res.ok) { setStatus("Error: " + res.error); return; }
   await refreshFolder();
+  loadRoute(nn);
 }
 
 async function deleteRoute(name) {
