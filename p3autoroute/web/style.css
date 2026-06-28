@@ -21,6 +21,7 @@
   --danger:     #AF3029; /* red-600    — sello de cera         */
   --row-alt:    #E6E4D9; /* base-100   — fila alterna / hover  */
   --glow:       #F9AE77; /* orange-200 — halo de selección     */
+  --myprice:    #5E409D; /* purple-600 — mi precio fijado      */
   --den-bar:    rgba(142,107,1,.20); /* latón translúcido — barra de densidad */
   --shadow: 0 1px 3px rgba(16,15,15,.10);
 }
@@ -42,6 +43,7 @@
   --danger:     #D14D41; /* red-400                            */
   --row-alt:    #282726; /* base-900                           */
   --glow:       #9D4310; /* orange-700 — halo de selección     */
+  --myprice:    #8B7EC8; /* purple-400 — mi precio fijado      */
   --den-bar:    rgba(208,162,21,.26); /* ámbar translúcido — barra de densidad */
   --shadow: 0 1px 3px rgba(16,15,15,.5);
 }
@@ -439,6 +441,24 @@ select.mode-sel-4, option.mode-opt-4 { color: var(--deposit); }
 .pr-cursor-shade { position: absolute; top: 56px; height: 48px; pointer-events: none; display: none; border-radius: 4px; }
 .pr-cursor-shade.buy { background: var(--withdraw); opacity: .18; }
 .pr-cursor-shade.sell { background: var(--sell); opacity: .18; }
+
+/* "Mi precio" — el precio fijado en «Mis precios» (preset ★), plantado como una
+   bandera de color en cada carril para leer tu objetivo de compra/venta contra
+   las ciudades en vivo. Color propio (púrpura) que no choca con los demás. */
+.pr-myprice {
+  position: absolute; top: 50px; height: 60px; width: 2px;
+  background: var(--myprice); transform: translateX(-50%);
+  pointer-events: none; z-index: 4; border-radius: 1px;
+  box-shadow: 0 0 0 1px var(--panel);
+}
+.pr-myprice-label {
+  position: absolute; top: 36px; transform: translateX(-50%);
+  background: var(--myprice); color: var(--accent-ink);
+  font-size: 10px; font-weight: 600; line-height: 1.1; text-align: center;
+  padding: 1px 6px; border-radius: 5px; white-space: nowrap;
+  pointer-events: none; z-index: 5; font-variant-numeric: tabular-nums;
+}
+.pr-myprice-label b { font-weight: 700; }
 .pr-saved-toast {
   position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 1000;
   background: var(--buy); color: var(--panel); font-size: 13px; font-weight: 600;

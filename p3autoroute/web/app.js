@@ -1062,6 +1062,8 @@ async function setRangePrice(good, side, price) {
   catch (e) { res = null; }
   if (!res || !res.ok) return;
   reloadPricings();  // keep the Pricings tab's state in sync (fire-and-forget)
+  // set_price always writes the default preset, so reprice the open route too.
+  applyDefaultPriceToRoute(good, side, price);
   const t = h("div", { class: "pr-saved-toast" },
     `✓ ${META.goods.names[good]} · ${side === "buy" ? "compra" : "venta"} → ${price.toLocaleString("es-ES")}`);
   document.body.append(t);
@@ -1116,6 +1118,17 @@ function buildRangeChart(g) {
     // cheap/buy side (left) or the dear/sell side (right).
     const shade = h("div", { class: "pr-cursor-shade " + lk });
     wrap.append(shade);
+    // "Mi precio": the price fixed in the default Mis-precios preset (buy on the
+    // buy lane, sell on the sell lane), planted as a coloured flag so the user
+    // can read their target against the live towns. Hidden when off-scale.
+    const dp = defaultPricing();
+    const myPrice = dp ? (isSell ? dp.selling[g.good] : dp.buying[g.good]) : null;
+    if (inRange(myPrice)) {
+      wrap.append(h("div", { class: "pr-myprice", style: `left:${X(myPrice)}%`,
+        title: `Mi precio (Mis precios) — ${isSell ? "venta" : "compra"} ${fmt(myPrice)} oro/carga` }));
+      wrap.append(h("div", { class: "pr-myprice-label", style: `left:${X(myPrice)}%` },
+        "set", h("br"), h("b", null, fmt(myPrice))));
+    }
     // Fade the edge where towns are clamped, so a wide off-scale tail reads as cut.
     if (outHi.length) wrap.append(h("div", { class: "pr-clip r" }));
     if (outLo.length) wrap.append(h("div", { class: "pr-clip l" }));
@@ -1222,6 +1235,7 @@ function openPrices() {
     note, body);
   // Warn before discarding unsaved price edits when closing by click-outside.
   modal(node, async () => {
+    await flushPricingSave();   // auto-save is debounced; commit anything pending
     if (pricingsDirty &&
         !(await confirmDialog("Hay cambios sin guardar en los precios. ¿Cerrar igualmente?")))
       return false;
@@ -1816,6 +1830,66 @@ let pricingsDirty = false;
 
 async function reloadPricings() { state.pricings = await api("/api/pricings"); }
 
+// Auto-save: the Mis-precios editor persists on every edit (debounced 500 ms),
+// so there's no manual Save button. renderPricingsTab edits the very object that
+// state.pricings holds, so a save just pushes that live object to disk.
+let pricingSaveTimer = null;
+
+function schedulePricingSave(preset) {
+  pricingsDirty = true;
+  markAutosave("Guardando…");
+  if (pricingSaveTimer) clearTimeout(pricingSaveTimer);
+  pricingSaveTimer = setTimeout(async () => {
+    pricingSaveTimer = null;
+    const res = await api("/api/pricings/save", { pricing: preset });
+    if (res && res.ok) { pricingsDirty = false; markAutosave("✓ Guardado"); }
+    else markAutosave("⚠ Error al guardar");
+  }, 500);
+}
+
+// Flush any pending debounced save immediately (e.g. before closing the modal).
+async function flushPricingSave() {
+  if (pricingSaveTimer) { clearTimeout(pricingSaveTimer); pricingSaveTimer = null; }
+  if (!pricingsDirty) return;
+  const preset = state.pricings.find((p) => p.id === selectedPricing);
+  if (!preset) return;
+  const res = await api("/api/pricings/save", { pricing: preset });
+  if (res && res.ok) pricingsDirty = false;
+}
+
+// Reflect the auto-save state in the editor's indicator (no-op if not visible).
+function markAutosave(text) {
+  const el = pricingsHost && pricingsHost.querySelector(".pp-autosave");
+  if (el) el.textContent = text;
+}
+
+// One price was edited in Mis precios: write it into the preset (the live
+// state.pricings object), auto-save it, and — if it's the default preset (★) —
+// reprice the matching Buy/Sell rules in the open route right away.
+function onPricingEdited(preset, good, side, value) {
+  if (side === "buy") preset.buying[good] = value;
+  else preset.selling[good] = value;
+  if (preset.is_default) applyDefaultPriceToRoute(good, side, value);
+  schedulePricingSave(preset);
+}
+
+// Propagate a default-preset price change to every matching Buy/Sell rule in the
+// currently open route (dockable stops only). In-memory only — the user still
+// saves the route with its own Save button.
+function applyDefaultPriceToRoute(good, side, value) {
+  if (!state.route) return;
+  const mode = side === "buy" ? 1 : 2;
+  let n = 0;
+  state.route.stops.forEach((s) => {
+    if (s.mode !== 0) return;
+    s.rules.forEach((r) => { if (r.good === good && r.mode === mode) { r.price = value; n++; } });
+  });
+  if (!n) return;
+  renderEditor();
+  setStatus(`Repriced ${n} ${side} rule(s) for ${META.goods.names[good]} `
+    + `in "${state.routeName}" — remember to Save the route`);
+}
+
 // A price number-input flanked by quick step buttons (−10 −5 −1 … +1 +5 +10).
 // `commit(v)` receives the clamped value on every edit, typed or stepped.
 function priceStepper(value, commit) {
@@ -1862,8 +1936,8 @@ function renderPricingsTab() {
       onclick: () => preset && exportPresets("pricings", [preset.id], `pricing-${safeFilename(preset.id)}.json`) }, "Export"),
     h("button", { title: "Exportar todas las plantillas a un .json",
       onclick: () => exportPresets("pricings", null, "pricings.json") }, "Export all"),
-    h("button", { class: "primary save-btn", title: "Save changes",
-      onclick: (e) => preset && savePricing(preset, e.currentTarget) }, "Save"));
+    h("span", { class: "pp-autosave hint", title: "Los cambios en Mis precios se guardan automáticamente" },
+      pricingsDirty ? "Guardando…" : "✓ Autoguardado"));
 
   let grid;
   if (preset) {
@@ -1872,8 +1946,8 @@ function renderPricingsTab() {
     const rows = [];
     for (const g of order) {
       if (!META.goods.visibility[g] && !state.showWeapons) continue;
-      const b = priceStepper(preset.buying[g], (v) => { preset.buying[g] = v; pricingsDirty = true; });
-      const s = priceStepper(preset.selling[g], (v) => { preset.selling[g] = v; pricingsDirty = true; });
+      const b = priceStepper(preset.buying[g], (v) => onPricingEdited(preset, g, "buy", v));
+      const s = priceStepper(preset.selling[g], (v) => onPricingEdited(preset, g, "sell", v));
       const defBuy = def.buying[g], defSell = def.selling[g];
       const cBuy = h("td", { class: "default-price" + (preset.buying[g] !== defBuy ? " diff" : ""),
         title: "Default buy price" }, defBuy);
@@ -1900,11 +1974,6 @@ async function createPricing() {
   if (!id) return;
   await api("/api/pricings/save", { pricing: { id, is_default: false } });
   await reloadPricings(); selectedPricing = id; renderPricingsTab();
-}
-async function savePricing(preset, btn) {
-  const res = await withSaveFeedback(btn, () => api("/api/pricings/save", { pricing: preset }));
-  if (res === undefined || !res || !res.ok) return;
-  await reloadPricings(); pricingsDirty = false; setStatus(`Pricing "${preset.id}" saved`);
 }
 async function setDefaultPricing(id) { await api("/api/pricings/setdefault", { id }); await reloadPricings(); renderPricingsTab(); }
 async function renamePricing(id) {
