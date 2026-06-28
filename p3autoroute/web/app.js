@@ -451,23 +451,28 @@ function addStop() {
   }
 }
 
-// Visual feedback for the Save button: a spinner while writing, then a green
-// "wax seal" stamp with a self-drawing checkmark on success, or a red shake on
-// error. The button reverts to its idle "Save" label after a short beat.
-let _saveResetTimer = null;
-function resetSaveButton() {
-  const btn = $("#save-route");
+// Visual feedback shared by every Save button: a spinner while writing, then a
+// green "wax seal" stamp with a self-drawing checkmark on success, or a red shake
+// on error. The button reverts to its idle "Save" label after a short beat. Any
+// button tagged .save-btn can opt in by routing its write through
+// withSaveFeedback() — the route Save, plus the Sortings/Pricings editors.
+const _saveResetTimers = new WeakMap();
+function resetSaveButton(btn) {
   if (!btn) return;
   btn.classList.remove("is-saving", "is-saved", "is-error");
   btn.textContent = "Save";
-  _saveResetTimer = null;
+  _saveResetTimers.delete(btn);
 }
 
-async function saveRoute() {
-  const btn = $("#save-route");
-  if (btn.dataset.busy === "1") return; // ignore re-entrant clicks while saving
+// Run `task` (the async write, returning the API's {ok,...} object) while playing
+// the wax-seal feedback on `btn`. Returns the task's result, or `undefined` if a
+// re-entrant click was ignored while a save was already in flight.
+async function withSaveFeedback(btn, task) {
+  if (!btn) return task();
+  if (btn.dataset.busy === "1") return undefined; // ignore re-entrant clicks
   btn.dataset.busy = "1";
-  if (_saveResetTimer) { clearTimeout(_saveResetTimer); _saveResetTimer = null; }
+  const prev = _saveResetTimers.get(btn);
+  if (prev) { clearTimeout(prev); _saveResetTimers.delete(btn); }
 
   btn.classList.remove("is-saved", "is-error");
   btn.classList.add("is-saving");
@@ -475,7 +480,7 @@ async function saveRoute() {
 
   let res;
   try {
-    res = await api("/api/route/save", { path: state.folder, route: state.route });
+    res = await task();
   } catch (e) {
     res = { ok: false, error: String(e) };
   }
@@ -483,19 +488,29 @@ async function saveRoute() {
   btn.classList.remove("is-saving");
   btn.dataset.busy = "0";
 
-  if (!res || !res.ok) {
-    setStatus("Save error: " + (res ? res.error : "unknown"));
+  if (res && res.ok) {
+    btn.classList.add("is-saved");
+    btn.innerHTML = '<svg class="check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">' +
+      '<path d="M4 12.5l5 5L20 6"/></svg>Saved';
+    _saveResetTimers.set(btn, setTimeout(() => resetSaveButton(btn), 1800));
+  } else {
     btn.classList.add("is-error");
     btn.textContent = "✗ Error";
-    _saveResetTimer = setTimeout(resetSaveButton, 2200);
+    _saveResetTimers.set(btn, setTimeout(() => resetSaveButton(btn), 2200));
+  }
+  return res;
+}
+
+async function saveRoute() {
+  const btn = $("#save-route");
+  const res = await withSaveFeedback(btn, () =>
+    api("/api/route/save", { path: state.folder, route: state.route }));
+  if (res === undefined) return; // re-entrant click ignored
+  if (!res || !res.ok) {
+    setStatus("Save error: " + (res ? res.error : "unknown"));
     return;
   }
-
   setStatus(`Route "${state.route.name}" saved`);
-  btn.classList.add("is-saved");
-  btn.innerHTML = '<svg class="check" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">' +
-    '<path d="M4 12.5l5 5L20 6"/></svg>Saved';
-  _saveResetTimer = setTimeout(resetSaveButton, 1800);
   refreshFolder();
 }
 
@@ -1691,7 +1706,7 @@ function renderSortingsTab() {
         h("div", { class: "spacer" }),
         h("button", { title: "Export this sorting to a .json file",
           onclick: () => exportPresets("sortings", [preset.id], `sorting-${safeFilename(preset.id)}.json`) }, "Export"),
-        h("button", { class: "primary", onclick: () => saveSorting(preset) }, "Save")),
+        h("button", { class: "primary save-btn", onclick: (e) => saveSorting(preset, e.currentTarget) }, "Save")),
       h("p", { class: "hint" }, "Drag to change the order of goods."),
       ul);
   } else {
@@ -1707,8 +1722,9 @@ async function createSorting() {
   await api("/api/sortings/save", { sorting: { id, is_default: false, goods: [...Array(META.goods.count).keys()] } });
   await reloadSortings(); selectedSorting = id; renderSortingsTab();
 }
-async function saveSorting(preset) {
-  await api("/api/sortings/save", { sorting: preset });
+async function saveSorting(preset, btn) {
+  const res = await withSaveFeedback(btn, () => api("/api/sortings/save", { sorting: preset }));
+  if (res === undefined || !res || !res.ok) return;
   await reloadSortings(); setStatus(`Sorting "${preset.id}" saved`);
 }
 async function setDefaultSorting(id) { await api("/api/sortings/setdefault", { id }); await reloadSortings(); renderSortingsTab(); }
@@ -1846,8 +1862,8 @@ function renderPricingsTab() {
       onclick: () => preset && exportPresets("pricings", [preset.id], `pricing-${safeFilename(preset.id)}.json`) }, "Export"),
     h("button", { title: "Exportar todas las plantillas a un .json",
       onclick: () => exportPresets("pricings", null, "pricings.json") }, "Export all"),
-    h("button", { class: "primary", title: "Guardar cambios",
-      onclick: () => preset && savePricing(preset) }, "Guardar"));
+    h("button", { class: "primary save-btn", title: "Save changes",
+      onclick: (e) => preset && savePricing(preset, e.currentTarget) }, "Save"));
 
   let grid;
   if (preset) {
@@ -1885,8 +1901,9 @@ async function createPricing() {
   await api("/api/pricings/save", { pricing: { id, is_default: false } });
   await reloadPricings(); selectedPricing = id; renderPricingsTab();
 }
-async function savePricing(preset) {
-  await api("/api/pricings/save", { pricing: preset });
+async function savePricing(preset, btn) {
+  const res = await withSaveFeedback(btn, () => api("/api/pricings/save", { pricing: preset }));
+  if (res === undefined || !res || !res.ok) return;
   await reloadPricings(); pricingsDirty = false; setStatus(`Pricing "${preset.id}" saved`);
 }
 async function setDefaultPricing(id) { await api("/api/pricings/setdefault", { id }); await reloadPricings(); renderPricingsTab(); }
