@@ -1545,6 +1545,161 @@ function openShips() {
   refresh(false).then(startAuto);
 }
 
+// --------------------------------------------------------------------------
+// Captains — which tavern has a captain for hire right now
+// --------------------------------------------------------------------------
+// Reads the running game (Api.captains_live). Each town chains the captains
+// sitting in its tavern; one that no merchant employs is the one on offer. The
+// player's own ships (Api.ships_live) are cross-referenced so every row can say
+// whether a ship is already docked there or on its way.
+// Sort keys: a higher score sorts first, so "cheapest/youngest first" negate.
+const CAPTAIN_COLUMNS = [
+  { key: "town", label: "Ciudad", title: "Ordenar por ciudad" },
+  { key: "trade", label: "Comercio", score: (c) => c.raw.trade },
+  { key: "sailing", label: "Navegación", score: (c) => c.raw.sailing },
+  { key: "fighting", label: "Combate", score: (c) => c.raw.fighting },
+  { key: "wage", label: "Sueldo", num: true, score: (c) => -c.wage, title: "Sueldo diario — ordenar del más barato al más caro" },
+  { key: "age", label: "Edad", num: true, score: (c) => -(c.age == null ? 999 : c.age), title: "Ordenar del más joven al más viejo" },
+];
+const captainTotal = (c) => c.raw.trade + c.raw.sailing + c.raw.fighting;
+
+function skillPips(level, raw) {
+  return h("span", { class: "skill-pips", title: `Nivel ${level} de 5 (${raw} de 255)` },
+    h("span", { class: "on" }, "●".repeat(level)),
+    h("span", { class: "off" }, "●".repeat(5 - level)),
+    h("span", { class: "cap-level" }, String(level)));
+}
+
+function openCaptains() {
+  let liveTimer = null;
+  let sortKey = null;    // null = best overall (sum of the three skills) first
+  let last = null;       // last good payload, re-rendered when the sort changes
+  let fleet = [];        // the player's ships, [] when that read fails
+  let shown = null;      // signature of what is on screen, to skip no-op redraws
+
+  const autoChk = h("input", { type: "checkbox", checked: true });
+  const autoWrap = h("label", { class: "hint" }, autoChk, " Auto (2s)");
+  const btnRefresh = h("button", { class: "pr-refresh" }, "↻ Refrescar");
+  const note = h("p", { class: "prices-summary" });
+  const body = h("div", { class: "prices-body" });
+
+  const node = h("div", { class: "modal prices-modal captains-modal" },
+    h("h2", null, "🧭 Captains for hire"),
+    h("div", { class: "prices-controls" }, btnRefresh, autoWrap),
+    note, body);
+  modal(node);
+
+  function stopAuto() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
+  function startAuto() {
+    stopAuto();
+    if (!autoChk.checked) return;
+    liveTimer = setInterval(() => {
+      if (!document.body.contains(node)) { stopAuto(); return; }  // modal closed
+      if (autoChk.checked) refresh(true);
+    }, 2000);
+  }
+
+  // Which of the player's ships are docked in this town or sailing to it.
+  function fleetCell(townIndex) {
+    const short = (names) => names.slice(0, 2).join(", ") + (names.length > 2 ? ` +${names.length - 2}` : "");
+    const here = fleet.filter((s) => !s.atSea && s.townIndex === townIndex).map((s) => s.name);
+    const coming = fleet.filter((s) => s.atSea && s.destIndex === townIndex);
+    const parts = [];
+    if (here.length) parts.push(h("span", { class: "here", title: here.join(", ") }, "⚓ " + short(here)));
+    if (coming.length) {
+      const soonest = coming.reduce((a, b) => ((a.etaDays ?? 1e9) <= (b.etaDays ?? 1e9) ? a : b));
+      const eta = fmtEta(soonest.etaDays);
+      const names = coming.map((s) => s.name);
+      parts.push(h("span", { class: "coming", title: names.join(", ") },
+        "⛵ " + short(names) + (eta ? " · " + eta : "")));
+    }
+    return h("td", { class: "cap-fleet" }, parts.length ? parts : "—");
+  }
+
+  function render() {
+    const d = last.date;
+    const caps = last.hireable.slice();
+    note.textContent = (caps.length
+      ? `${caps.length} ${caps.length === 1 ? "capitán libre" : "capitanes libres"}`
+      : "Ningún capitán libre") + ` · ${d.day} ${MONTHS[d.month]} ${d.year}`;
+
+    const col = CAPTAIN_COLUMNS.find((c) => c.key === sortKey);
+    if (col && col.score) caps.sort((a, b) => col.score(b) - col.score(a));
+    else if (col) caps.sort((a, b) => a.town.localeCompare(b.town));
+    else caps.sort((a, b) => captainTotal(b) - captainTotal(a));
+
+    // The three lists are empty when the game's data fits the model this view
+    // relies on; anything else means an unexpected build or a half-loaded save.
+    const ck = last.checks || {};
+    const odd = ["chainedOnShip", "chainedTwice", "loopingChains"].some((k) => (ck[k] || []).length);
+    const warn = odd ? h("p", { class: "captains-warn" },
+      "⚠ Los datos del juego no cuadran del todo con lo esperado — comprueba la taberna antes de fiarte.") : null;
+
+    if (!caps.length) {
+      body.replaceChildren(...[warn, h("p", { class: "hint" },
+        "Ahora mismo no hay ningún capitán libre en ninguna taberna. Vuelve a mirar en unos días de juego.")].filter(Boolean));
+      return;
+    }
+
+    // Real buttons inside the headers so sorting works from the keyboard too.
+    const head = h("tr", null,
+      CAPTAIN_COLUMNS.map((c) => h("th", {
+        class: (c.num ? "num " : "") + (c.key === sortKey ? "active" : ""),
+        "aria-sort": c.key === sortKey ? (c.key === "town" || c.num ? "ascending" : "descending") : null,
+      }, h("button", {
+        class: "cap-sort", "data-key": c.key,
+        title: c.title || `Ordenar por ${c.label.toLowerCase()}, de mayor a menor`,
+        onclick: () => {
+          sortKey = sortKey === c.key ? null : c.key;
+          render();
+          // The table was rebuilt; put the focus back on the same header.
+          const again = body.querySelector(`.cap-sort[data-key="${c.key}"]`);
+          if (again) again.focus();
+        },
+      }, c.label + (c.key === sortKey ? " ▾" : "")))),
+      h("th", { title: "Tus barcos atracados en esa ciudad (⚓) o navegando hacia ella (⛵)" }, "Tus barcos"));
+
+    const rows = caps.map((c) => h("tr", null,
+      h("td", { class: "cap-town" }, c.town,
+        c.status === "yours" ? h("span", { class: "cap-tag", title: "Lo despediste aquí; sigue esperando en la taberna" }, "despedido por ti") : null),
+      h("td", null, skillPips(c.trade, c.raw.trade)),
+      h("td", null, skillPips(c.sailing, c.raw.sailing)),
+      h("td", null, skillPips(c.fighting, c.raw.fighting)),
+      h("td", { class: "num" }, String(c.wage)),
+      h("td", { class: "num" }, c.age == null ? "—" : String(c.age)),
+      fleetCell(c.townIndex)));
+
+    body.replaceChildren(...[warn,
+      h("table", { class: "captains-table" }, h("thead", null, head), h("tbody", null, rows)),
+      h("p", { class: "captains-foot" },
+        "Lleva un barco a la ciudad y contrátalo en la taberna. Si otro mercader se te adelanta, desaparece de esta lista."),
+    ].filter(Boolean));
+  }
+
+  // ``silent`` (auto-refresh tick): re-read without the "Reading…" flicker and
+  // keep showing the last good data on a transient failure.
+  async function refresh(silent) {
+    if (!silent) body.replaceChildren(h("p", { class: "hint" }, "Reading the game…"));
+    let d, s;
+    try { [d, s] = await Promise.all([api("/api/captains/live"), api("/api/ships/live").catch(() => null)]); }
+    catch (e) { d = { ok: false, error: "Unexpected error: " + e }; }
+    if (d && d.ok) {
+      const ships = (s && s.ok && s.ships) || [];
+      // Rebuild only when something on screen would change: an auto-refresh tick
+      // that replaced identical rows would drop keyboard focus and open tooltips.
+      const sig = JSON.stringify([d.date, d.hireable, d.checks,
+        ships.map((x) => [x.name, x.atSea, x.townIndex, x.destIndex, fmtEta(x.etaDays)])]);
+      if (silent && sig === shown) return;
+      shown = sig; last = d; fleet = ships;
+      render();
+    } else if (!silent) { shown = null; note.textContent = ""; body.replaceChildren(shipsError(d)); }
+  }
+
+  btnRefresh.addEventListener("click", () => refresh(false));
+  autoChk.addEventListener("change", () => { if (autoChk.checked) startAuto(); else stopAuto(); });
+  refresh(false).then(startAuto);
+}
+
 function openTemplates() {
   let current = GENERATORS[0];
   const body = h("div");
@@ -2019,6 +2174,7 @@ async function init() {
   $("#templates-btn").addEventListener("click", openTemplates);
   $("#prices-btn").addEventListener("click", openPrices);
   $("#ships-btn").addEventListener("click", openShips);
+  $("#captains-btn").addEventListener("click", openCaptains);
   setStatus("Ready. Open your game's Save\\AutoRoute folder.");
 
   // Remember the last opened folder and reopen it automatically.
