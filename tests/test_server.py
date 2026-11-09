@@ -12,6 +12,11 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Keep the whole file off the real ~/.p3autoroute. Several tests persist settings
+# (folder_open stores last_folder), which otherwise overwrites the user's own
+# remembered folder with a temp dir every time the suite runs.
+os.environ["P3AUTOROUTE_DATA"] = tempfile.mkdtemp()
+
 from p3autoroute import generators, goods, production, rou, server, towns  # noqa: E402
 from p3autoroute.api import Api  # noqa: E402
 from p3autoroute.models import Route  # noqa: E402
