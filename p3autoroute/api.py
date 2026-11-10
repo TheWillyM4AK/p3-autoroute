@@ -78,6 +78,12 @@ class Api:
         from . import ships
         return ships.read(params)
 
+    # ------------------------------------------------------------- captains
+    def captains_live(self, params=None) -> dict:
+        """Which taverns hold a captain for hire (reads the running game's RAM)."""
+        from . import captains
+        return captains.read(params)
+
     # --------------------------------------------------------------- folder
     def pick_folder(self, params=None) -> dict:
         """Open the native folder picker (desktop mode only)."""
@@ -282,7 +288,8 @@ class Api:
 
 # Methods exposed by name (for the web server dispatch).
 PUBLIC_METHODS = [
-    "meta", "settings", "settings_set", "prices_table", "prices_live", "ships_live", "pick_folder", "folder_open",
+    "meta", "settings", "settings_set", "prices_table", "prices_live", "ships_live", "captains_live",
+    "pick_folder", "folder_open",
     "route_load", "route_save", "route_create", "route_delete",
     "route_rename", "route_duplicate",
     "stop_new", "stop_apply_pricing", "stop_apply_sorting", "generate",

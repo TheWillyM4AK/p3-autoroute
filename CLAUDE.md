@@ -21,7 +21,9 @@ python -m p3autoroute --web        # browser fallback at http://127.0.0.1:8765
 
 python tests/test_roundtrip.py     # core: compressor + .rou round-trip
 python tests/test_server.py        # API + generators + HTTP server
-pytest                             # both, if pytest is installed
+python tests/test_pricing.py       # town price model
+python tests/test_captains.py      # tavern-captain lookup, from a fake memory image
+pytest                             # all of them, if pytest is installed
 
 pyinstaller p3autoroute.spec       # build dist/p3-autoroute/p3-autoroute.exe
 ```
@@ -107,10 +109,35 @@ quantities are indexed by good id. Key encoding rules (in `rou.py`):
   apply actions. Switching a rule to Buy/Sell also auto-fills the default price
   there.
 
+### Live game views (read-only process memory)
+
+[`prices.py`](p3autoroute/prices.py), [`ships.py`](p3autoroute/ships.py) and
+[`captains.py`](p3autoroute/captains.py) read the **running game's memory** and
+never write to it. `prices.py` owns the single `ctypes` implementation
+(`_find_pid`, `_Mem`); the other two import it. Addresses are fixed virtual
+addresses of the 1.x GOG build (image base `0x400000`, no ASLR), and each
+`read()` rejects an implausible in-game date as `unknown_version` rather than
+reporting garbage. Windows API calls happen lazily inside `read()`, so the
+modules import on any platform. All three return `{"ok": False, "code", "error"}`
+on failure and are exposed as `prices_live` / `ships_live` / `captains_live`.
+
+`captains.py` answers "which tavern has a captain for hire". `town+0x82E` is the
+**head of a per-town linked list** of auto-trader records, not a captain: the
+list mixes captains with the tavern's pirate (`record+0x08 > 0x20`), and the
+hireable one is a captain record with no employer (`record+0x0F == 0xFF`).
+Reading only the head was the bug in an earlier, reverted attempt. The model was
+verified against a live game **including a town that had to be empty** — repeat
+that negative check before trusting any change here. `_collect(mem)` takes any
+object with `read`/`u8`/`u16`/`u32`, which is how `test_captains.py` runs it
+without the game; `python -m p3autoroute.captains` dumps every town's chain.
+
 ### Persistence and paths
 
 User data (presets, `settings.json` with the last-opened folder) lives in
-`~/.p3autoroute/`, overridable via the `P3AUTOROUTE_DATA` env var.
+`~/.p3autoroute/`, overridable via the `P3AUTOROUTE_DATA` env var. Tests that
+build an `Api` must set that variable to a temp dir first (see the top of
+`test_server.py`): `folder_open` persists `last_folder`, so an unisolated run
+overwrites the user's own remembered folder.
 [`paths.py`](p3autoroute/paths.py) resolves both the data dir and the bundled
 `web/` dir, and is **PyInstaller-frozen aware** (checks `sys.frozen` / `_MEIPASS`);
 keep that branch working when changing how resources are located.

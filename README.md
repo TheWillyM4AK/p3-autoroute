@@ -66,6 +66,26 @@ In the app:
 Presets (sortings and pricings) and settings are stored as JSON under
 `~/.p3autoroute/` (override with the `P3AUTOROUTE_DATA` environment variable).
 
+## Live views (read from the running game)
+
+Three header buttons read the **running game's memory, read-only** (Windows
+only; tested with the 1.x GOG build). Open the game, load a savegame, then:
+
+- **💰 Prices** — live buy/sell prices per good and town, next to the reference
+  table.
+- **🚢 Ships** — your ships and convoys: hold, cargo with its average purchase
+  price, destination and time to arrival.
+- **🧭 Captains** — which towns' taverns have a **captain for hire** right now,
+  with his skills (Trade / Sailing / Fighting), daily wage and age, and which of
+  your ships are docked there or already on their way.
+
+Nothing is ever written to the game. The captain lookup follows the tavern model
+documented by the [P3Modding](https://github.com/P3Modding) project
+([book PR #3](https://github.com/P3Modding/p3modding.github.io/pull/3)): each
+town keeps a linked list of the captains sitting in its tavern, and one no
+merchant employs is the one on offer. `python -m p3autoroute.captains` prints
+the raw per-town data if the view ever disagrees with a tavern.
+
 ## Build the `.exe`
 
 ```bash
@@ -82,6 +102,8 @@ pyinstaller p3autoroute.spec
 ```bash
 python tests/test_roundtrip.py   # compressor + .rou serialization (round-trip)
 python tests/test_server.py      # API + generators + settings
+python tests/test_pricing.py     # town price model
+python tests/test_captains.py    # tavern-captain lookup (fake memory image, no game needed)
 # or, if you have pytest:  pytest
 ```
 
@@ -98,6 +120,10 @@ p3autoroute/
 ├─ presets.py      # sorting and pricing presets (JSON) + apply
 ├─ production.py    # static town production/demand map (which town buys/sells a good)
 ├─ generators.py   # 5 route generators (templates)
+├─ pricing.py      # town price model (buy/sell formulas, reference table)
+├─ prices.py       # live prices, read from the running game's memory
+├─ ships.py        # live ships/convoys view (same read-only reader)
+├─ captains.py     # live tavern captains for hire (same read-only reader)
 ├─ settings.py     # persisted settings (e.g. last opened folder)
 ├─ api.py          # Api class: ALL the logic (js_api bridge and server)
 ├─ app.py          # native PyWebView window (primary mode)
